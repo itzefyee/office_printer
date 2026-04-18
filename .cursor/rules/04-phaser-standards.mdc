@@ -1,0 +1,21 @@
+---
+description: Phaser implementation standards
+alwaysApply: true
+---
+
+# Phaser standards
+
+Use Phaser 3 scene classes.
+
+Scenes:
+- BootScene loads assets and content.
+- TitleScene starts the run.
+- GameScene owns play flow.
+- ResultsScene shows ending summary.
+
+Implementation rules:
+- Use Phaser scene lifecycle correctly: preload/create/update.
+- Use scene timers for escalation and queue growth.
+- Clean up timers and listeners on shutdown.
+- Keep button positions fixed during play.
+- Prefer simple text and shape UI before decorative art.

@@ -1,0 +1,26 @@
+---
+description: Core project identity and non-negotiables
+alwaysApply: true
+---
+
+# Office Printer 9K
+
+Office Printer 9K is a one-screen dark comedy browser management game built with Phaser 3.
+
+Core fantasy:
+- The player is an abused sentient office printer.
+- The fantasy is survival under impossible corporate demands.
+- The tone is dry, absurd, bureaucratic, and increasingly desperate.
+
+Scope constraints:
+- Keep the project small and jam-friendly.
+- One main gameplay scene.
+- 4 supporting scenes max: Boot, Title, Game, Results.
+- Use data-driven content.
+- Do not add complex subsystems unless requested.
+
+Always prefer:
+- Clear state updates
+- Readable UI
+- Small reusable content objects
+- Short flavor text with strong punch

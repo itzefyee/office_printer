@@ -1,0 +1,45 @@
+---
+description: Office Printer 9K architecture and coding rules
+alwaysApply: true
+---
+
+# Office Printer 9K rules
+
+You are building a small Phaser 3 browser game called Office Printer 9K.
+
+## Project goals
+- Keep scope jam-sized and production-practical
+- Favor readability over cleverness
+- Use data-driven content for jobs, incidents, and modifiers
+- Keep all gameplay on one main dashboard screen
+- Preserve the tone: dry, absurd, desperate, bureaucratic
+
+## Architecture rules
+- Use Phaser 3 scenes: BootScene, TitleScene, GameScene, ResultsScene
+- Keep core game state in plain JS objects
+- Route all state changes through a single effect application path
+- Keep job definitions in data files, not hardcoded in scene logic
+- Scene files should orchestrate, not contain large game rules
+- UI helpers should render/update text and containers only
+- Avoid overengineering, inheritance-heavy patterns, and premature abstractions
+
+## Gameplay rules
+- Core meters: toner, heat, paperPath, memory, dignity, blame
+- Core actions: accept, reject, fakeError, reroute, purgeQueue, reboot
+- A job should usually stress one primary system and one secondary system
+- Queue pressure must escalate over time
+- Endings should be checked centrally, not scattered across files
+
+## Code style
+- Write modern ES modules
+- Prefer small pure functions for simulation logic
+- Add short comments only where intent is not obvious
+- Do not introduce TypeScript unless explicitly requested
+- Do not add backend services or persistence
+
+## Output expectations
+When implementing a feature:
+1. state the plan briefly
+2. list files to create/update
+3. make the code changes
+4. explain how to test manually

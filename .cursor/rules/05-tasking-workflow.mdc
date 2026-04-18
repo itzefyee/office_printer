@@ -1,0 +1,18 @@
+---
+description: How Cursor should execute tasks
+alwaysApply: true
+---
+
+# Agent workflow
+
+When implementing:
+1. Read relevant files first.
+2. Propose the smallest change set that satisfies the request.
+3. Edit existing files before creating new ones.
+4. Keep functions short and named clearly.
+5. Add TODO comments only when necessary.
+6. Do not introduce libraries without asking.
+
+When uncertain:
+- Ask for clarification instead of inventing a subsystem.
+- Use project docs in .cursor/docs and external @Docs references.

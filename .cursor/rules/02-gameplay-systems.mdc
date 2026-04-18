@@ -1,0 +1,21 @@
+---
+description: Gameplay meters and balancing rules
+alwaysApply: true
+---
+
+# Gameplay systems
+
+Primary meters:
+- toner: 0 to 100
+- heat: 0 to 100
+- paperPath: 0 to 100
+- memory: 0 to 100
+- dignity: 0 to 100
+- blame: 0 to 100
+
+Design rules:
+- Most jobs should impact one primary system and one secondary system.
+- Choices must be situational, not obviously optimal.
+- Fake error and reroute should be viable survival tools.
+- Queue pressure must rise over time.
+- A run should become noticeably harsher by mid shift.

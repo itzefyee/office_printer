@@ -1,0 +1,23 @@
+---
+description: Writing style for events, jobs, logs, and endings
+alwaysApply: true
+---
+
+# Writing tone
+
+Writing style:
+- Dry and official on the surface
+- Quietly absurd
+- Increasingly emotionally unstable underneath
+- No internet meme slang
+- No wacky exclamation-heavy humor
+
+Examples:
+- "Finance requires the receipt to become legible retroactively."
+- "User reports urgency without evidence."
+- "Thermal reserves object to leadership priorities."
+
+Keep text concise:
+- job title: 3 to 8 words
+- description: 1 sentence
+- result log: 1 short sentence
