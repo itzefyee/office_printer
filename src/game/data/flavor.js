@@ -153,6 +153,15 @@ export const endings = {
       'The investigation concluded before it began.',
       'Leadership thanks you for your flexibility.'
     ]
+  },
+  shift_complete: {
+    title: 'SHIFT COMPLETE',
+    summary: 'All performance targets met within acceptable tolerances. The printer will not be celebrated.',
+    memos: [
+      'Your output has been noted and filed without comment.',
+      "Tomorrow's shift begins at the same time as today's shift.",
+      'The printer has been thanked via automated system. It did not notice.'
+    ]
   }
 };
 

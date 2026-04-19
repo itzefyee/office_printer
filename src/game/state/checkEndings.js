@@ -1,3 +1,5 @@
+import { MAX_DAY_TIME } from '../config.js';
+
 // Centralized ending evaluation. Ordered by severity.
 // Returning early keeps the worst outcome winning when several would apply.
 
@@ -39,6 +41,14 @@ export function checkEndings(state) {
       ended: true,
       endingId: 'scapegoat',
       reason: 'Blame concentration critical. An incident report has been filed in your name.'
+    };
+  }
+
+  if (state.dayTime >= MAX_DAY_TIME) {
+    return {
+      ended: true,
+      endingId: 'shift_complete',
+      reason: 'Shift concluded. The printer has survived another standard operating day.'
     };
   }
 

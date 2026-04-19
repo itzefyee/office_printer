@@ -33,6 +33,15 @@ export const PHASE_PRESSURE = {
   lateShift:  { heat: 3, blame: 2, enqueueChance: 0.75 }
 };
 
+// Per-phase probability of a random incident firing each tick.
+export const INCIDENT_CHANCE = {
+  earlyShift: 0.15,
+  midShift:   0.25,
+  lateShift:  0.35
+};
+
+export const MAX_DAY_TIME = 75;
+
 export const QUEUE_WARN = 5;
 export const QUEUE_OVERFLOW = 8;
 

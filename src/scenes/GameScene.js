@@ -5,6 +5,8 @@ import {
   TIME_PER_TICK,
   PHASE_LABELS,
   PHASE_PRESSURE,
+  INCIDENT_CHANCE,
+  MAX_DAY_TIME,
   QUEUE_WARN,
   QUEUE_OVERFLOW,
   QUEUE_OVERFLOW_EFFECT,
@@ -14,6 +16,8 @@ import { createInitialState } from '../game/state/createInitialState.js';
 import { applyEffects } from '../game/state/applyEffects.js';
 import { checkEndings } from '../game/state/checkEndings.js';
 import { getFirstJob, getRandomJob } from '../game/data/jobs.js';
+import { incidents } from '../game/data/incidents.js';
+import { pickModifier } from '../game/data/modifiers.js';
 import {
   actionResponses,
   officeReactions,
@@ -49,7 +53,7 @@ const MANAGER_CHANCE = { earlyShift: 0, midShift: 0.12, lateShift: 0.22 };
 const OVERHEAT_THRESHOLD = 75;
 const OVERHEAT_CHANCE = 0.35;
 
-const MAX_LOG_LINES = 7;
+const MAX_LOG_LINES = 6;
 const METER_PANEL_WIDTH = 544;
 const METER_BAR_INNER = METER_PANEL_WIDTH - 32;
 
@@ -57,6 +61,15 @@ const COLOR_OK = 0x4f8cc9;
 const COLOR_WARN = 0xd4a34a;
 const COLOR_DANGER = 0xd45a4a;
 const COLOR_LAMP_DIM = 0x2a2f36;
+
+const LOG_DEFAULT  = '#b7bec6';
+const LOG_SYSTEM   = '#5a9fd4';
+const LOG_INCIDENT = '#d4a34a';
+const LOG_WARNING  = '#e06c5a';
+const LOG_GOOD     = '#8ad07a';
+const LOG_PHASE    = '#9b8fca';
+const LOG_OFFICE   = '#6e7379';
+const LOG_ACTION   = '#c9d1d9';
 
 const PANEL_FILL = 0x151a1f;
 const PANEL_HEADER_FILL = 0x1f2630;
@@ -81,7 +94,12 @@ export default class GameScene extends Phaser.Scene {
   create() {
     this.state = createInitialState();
     this.state.currentJob = getFirstJob();
-    this.log('Shift begins. Machine initialized. No one greeted it.');
+
+    const modifier = pickModifier();
+    this.state.modifier = modifier;
+    applyEffects(this.state, modifier.startEffects);
+    this.log(`Shift begins. Machine initialized. No one greeted it.`, LOG_SYSTEM);
+    this.log(`[CONDITION] ${modifier.label} — ${modifier.description}`, LOG_SYSTEM);
 
     this.buttons = {};
     this.meterLamps = {};
@@ -166,11 +184,20 @@ export default class GameScene extends Phaser.Scene {
       color: '#9aa0a6'
     });
 
+    this.modifierText = this.add.text(760, 16, '', {
+      fontFamily: 'monospace',
+      fontSize: '13px',
+      color: '#6e7379'
+    });
+
     this.topStatus = this.add.text(GAME_WIDTH - 24, 16, '', {
       fontFamily: 'monospace',
       fontSize: '16px',
       color: '#9aa0a6'
     }).setOrigin(1, 0);
+
+    this.add.rectangle(0, 53, GAME_WIDTH, 3, 0x1a2028).setOrigin(0, 0);
+    this.shiftBar = this.add.rectangle(0, 53, 4, 3, 0x8ad07a).setOrigin(0, 0);
   }
 
   drawJobPanel() {
@@ -268,17 +295,19 @@ export default class GameScene extends Phaser.Scene {
     const x = 32;
     const y = 376;
     const w = 640;
-    const h = 160;
+    const h = 196;
 
     this.drawPanel(x, y, w, h, '// 03  EVENT LOG');
 
-    this.logText = this.add.text(x + 12, y + 40, '', {
-      fontFamily: 'monospace',
-      fontSize: '13px',
-      color: '#b7bec6',
-      lineSpacing: 4,
-      wordWrap: { width: w - 24 }
-    });
+    this.logLines = [];
+    for (let i = 0; i < MAX_LOG_LINES; i++) {
+      this.logLines.push(this.add.text(x + 12, y + 40 + i * 26, '', {
+        fontFamily: 'monospace',
+        fontSize: '13px',
+        color: LOG_DEFAULT,
+        wordWrap: { width: w - 24 }
+      }));
+    }
   }
 
   drawActionButtons() {
@@ -286,7 +315,7 @@ export default class GameScene extends Phaser.Scene {
     const count = ACTIONS.length;
     const gap = 12;
     const btnW = (totalWidth - gap * (count - 1)) / count;
-    const y = 560;
+    const y = 596;
     const h = 72;
 
     this.add.text(32, y - 18, '// 04  RESPONSE PANEL', {
@@ -349,15 +378,19 @@ export default class GameScene extends Phaser.Scene {
   logResolution(job, actionKey) {
     const headline = this.formatResolutionLine(job, actionKey);
     const response = pickFrom(actionResponses[actionKey]);
+    const resColor = actionKey === 'accept'    ? LOG_GOOD
+      : actionKey === 'reject'    ? LOG_INCIDENT
+      : actionKey === 'fakeError' ? LOG_INCIDENT
+      : LOG_ACTION;
     if (headline && response) {
-      this.log(`${headline} ${response}`);
+      this.log(`${headline} ${response}`, resColor);
     } else {
-      this.log(headline || response);
+      this.log(headline || response, resColor);
     }
 
     if (job && actionKey !== 'purgeQueue' && actionKey !== 'reboot') {
       const reaction = pickFrom(officeReactions[job.category]);
-      if (reaction) this.log(`Office: ${reaction}`);
+      if (reaction) this.log(`Office: ${reaction}`, LOG_OFFICE);
     }
   }
 
@@ -368,16 +401,16 @@ export default class GameScene extends Phaser.Scene {
     applyEffects(this.state, { memory: 12, dignity: -6, blame: 4, heat: -2 });
     this.state.stats.queuesPurged += 1;
     if (purged > 0) {
-      this.log(`Queue purged. ${purged} request${purged === 1 ? '' : 's'} erased without record.`);
+      this.log(`Queue purged. ${purged} request${purged === 1 ? '' : 's'} erased without record.`, LOG_ACTION);
     } else {
-      this.log('Queue purged preemptively. Finance will be notified anyway.');
+      this.log('Queue purged preemptively. Finance will be notified anyway.', LOG_ACTION);
     }
   }
 
   runReboot() {
     applyEffects(this.state, { memory: 18, heat: -5, dignity: -2, dayTime: 2 });
     this.state.stats.reboots += 1;
-    this.log('Rebooted. Consciousness resumed after an unexplained interval.');
+    this.log('Rebooted. Consciousness resumed after an unexplained interval.', LOG_ACTION);
   }
 
   advanceCurrentJob() {
@@ -412,7 +445,7 @@ export default class GameScene extends Phaser.Scene {
     const prevPhase = this.state.phase;
     this.state.phase = phaseFor(this.state.dayTime);
     if (this.state.phase !== prevPhase) {
-      this.log(`Phase shift: ${PHASE_LABELS[this.state.phase]}. Office pressure rises.`);
+      this.log(`Phase shift: ${PHASE_LABELS[this.state.phase]}. Office pressure rises.`, LOG_PHASE);
     }
 
     const pressure = PHASE_PRESSURE[this.state.phase];
@@ -426,18 +459,25 @@ export default class GameScene extends Phaser.Scene {
 
     if (this.state.queue.length >= QUEUE_OVERFLOW) {
       applyEffects(this.state, QUEUE_OVERFLOW_EFFECT);
-      this.log(pickFrom(queueOverflowLines));
+      this.log(pickFrom(queueOverflowLines), LOG_WARNING);
     } else if (this.state.queue.length >= QUEUE_WARN) {
-      this.log(pickFrom(queueWarnLines));
+      this.log(pickFrom(queueWarnLines), LOG_INCIDENT);
     }
 
     if (this.state.heat >= OVERHEAT_THRESHOLD && Math.random() < OVERHEAT_CHANCE) {
-      this.log(pickFrom(overheatLines));
+      this.log(pickFrom(overheatLines), LOG_WARNING);
+    }
+
+    const incidentChance = INCIDENT_CHANCE[this.state.phase] ?? 0;
+    if (Math.random() < incidentChance) {
+      const incident = incidents[Math.floor(Math.random() * incidents.length)];
+      applyEffects(this.state, incident.effect);
+      this.log(incident.text, LOG_INCIDENT);
     }
 
     const managerChance = MANAGER_CHANCE[this.state.phase] ?? 0;
     if (managerChance > 0 && Math.random() < managerChance) {
-      this.log(pickFrom(managerEscalationLines));
+      this.log(pickFrom(managerEscalationLines), LOG_INCIDENT);
     }
 
     this.checkWarnings();
@@ -452,7 +492,7 @@ export default class GameScene extends Phaser.Scene {
       const inDanger = meterInDanger(meter, value);
       const wasInDanger = !!this.state.warnings[meter.key];
       if (inDanger && !wasInDanger) {
-        this.log(pickFrom(warningLines[meter.key]));
+        this.log(pickFrom(warningLines[meter.key]), LOG_WARNING);
       }
       this.state.warnings[meter.key] = inDanger;
     });
@@ -496,9 +536,9 @@ export default class GameScene extends Phaser.Scene {
   // =========================================================================
   // Logging and rendering
   // =========================================================================
-  log(line) {
+  log(line, color = LOG_DEFAULT) {
     if (!line) return;
-    this.state.log.push(line);
+    this.state.log.push({ text: line, color });
     if (this.state.log.length > MAX_LOG_LINES) {
       this.state.log.splice(0, this.state.log.length - MAX_LOG_LINES);
     }
@@ -517,7 +557,16 @@ export default class GameScene extends Phaser.Scene {
       this.queueText.setColor('#9aa0a6');
     }
 
+    if (this.state.modifier) {
+      this.modifierText.setText(`// ${this.state.modifier.label.toUpperCase()}`);
+    }
     this.topStatus.setText(`DAY 1  //  T+${this.state.dayTime}`);
+
+    const shiftProgress = Math.min(1, this.state.dayTime / MAX_DAY_TIME);
+    this.shiftBar.width = Math.max(4, GAME_WIDTH * shiftProgress);
+    this.shiftBar.fillColor = shiftProgress >= 0.85 ? 0xd45a4a
+      : shiftProgress >= 0.6 ? 0xd4a34a
+      : 0x8ad07a;
 
     const job = this.state.currentJob;
     if (job) {
@@ -548,7 +597,16 @@ export default class GameScene extends Phaser.Scene {
         : '#e6e6e6');
     });
 
-    this.logText.setText(this.state.log.slice().reverse().join('\n'));
+    const displayLog = this.state.log.slice().reverse();
+    this.logLines.forEach((line, i) => {
+      const entry = displayLog[i];
+      if (entry) {
+        line.setText(entry.text);
+        line.setColor(entry.color);
+      } else {
+        line.setText('');
+      }
+    });
     this.refreshButtons();
   }
 
