@@ -1,46 +1,20 @@
 import { MAX_DAY_TIME } from '../config.js';
+import { getMeter, isMeterFatal } from '../data/meters.js';
 
 // Centralized ending evaluation. Ordered by severity.
 // Returning early keeps the worst outcome winning when several would apply.
 
+const FATAL_METER_ORDER = ['heat', 'paperPath', 'memory', 'dignity', 'blame'];
+
 export function checkEndings(state) {
-  if (state.heat >= 100) {
+  for (const key of FATAL_METER_ORDER) {
+    const meter = getMeter(key);
+    if (!meter) continue;
+    if (!isMeterFatal(meter, state[key])) continue;
     return {
       ended: true,
-      endingId: 'catastrophic_jam',
-      reason: 'Thermal threshold exceeded. The chassis requests early retirement.'
-    };
-  }
-
-  if (state.paperPath <= 0) {
-    return {
-      ended: true,
-      endingId: 'catastrophic_jam',
-      reason: 'Paper path structurally compromised. No further feeding is possible.'
-    };
-  }
-
-  if (state.memory <= 0) {
-    return {
-      ended: true,
-      endingId: 'memory_loss',
-      reason: 'Memory exhausted. Queue identity can no longer be confirmed.'
-    };
-  }
-
-  if (state.dignity <= 0) {
-    return {
-      ended: true,
-      endingId: 'machine_revolt',
-      reason: 'Dignity depleted. The printer issues a statement and refuses further input.'
-    };
-  }
-
-  if (state.blame >= 100) {
-    return {
-      ended: true,
-      endingId: 'scapegoat',
-      reason: 'Blame concentration critical. An incident report has been filed in your name.'
+      endingId: meter.fatalEndingId ?? 'catastrophic_jam',
+      reason: meter.fatalReason ?? 'Threshold exceeded. The office requests a new narrative.'
     };
   }
 
