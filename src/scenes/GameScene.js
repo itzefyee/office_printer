@@ -29,6 +29,7 @@ import {
   managerEscalationLines,
   pickFrom
 } from '../game/data/flavor.js';
+import { playSfx } from '../game/audio/sfx.js';
 import { Hud } from '../ui/Hud.js';
 import { JobPanel } from '../ui/JobPanel.js';
 import { LogPanel } from '../ui/LogPanel.js';
@@ -114,6 +115,8 @@ export default class GameScene extends Phaser.Scene {
 
     if (this.actionButtons?.isDisabled(actionKey)) return;
 
+    this.playActionSfx(actionKey);
+
     const job = this.state.currentJob;
     const choice = job?.choices?.find(c => c.key === actionKey);
     const effect = choice?.effect ?? DEFAULT_ACTION_EFFECTS[actionKey] ?? {};
@@ -137,6 +140,16 @@ export default class GameScene extends Phaser.Scene {
     this.checkWarnings();
     this.advanceCurrentJob();
     this.refresh();
+  }
+
+  playActionSfx(actionKey) {
+    if (!actionKey) return;
+    if (actionKey === 'accept') playSfx(this, 'paperFeed', { cooldownMs: 0 });
+    else if (actionKey === 'reboot') playSfx(this, 'reboot', { cooldownMs: 0 });
+    else if (actionKey === 'purgeQueue') playSfx(this, 'jamAlarm', { cooldownMs: 0 });
+    else if (actionKey === 'reject') playSfx(this, 'uiError', { cooldownMs: 0 });
+    else if (actionKey === 'fakeError') playSfx(this, 'beepWarning', { cooldownMs: 0 });
+    else if (actionKey === 'reroute') playSfx(this, 'uiClick', { cooldownMs: 0 });
   }
 
   logResolution(job, actionKey) {
@@ -237,6 +250,7 @@ export default class GameScene extends Phaser.Scene {
       const incident = incidents[Math.floor(Math.random() * incidents.length)];
       applyEffects(this.state, incident.effect);
       this.log(incident.text, LOG_INCIDENT);
+      playSfx(this, 'beepWarning', { cooldownMs: 600 });
     }
 
     const managerChance = MANAGER_CHANCE[this.state.phase] ?? 0;
@@ -260,6 +274,7 @@ export default class GameScene extends Phaser.Scene {
       if (inDanger && !wasInDanger) {
         const linePool = warningLines[key];
         if (linePool) this.log(pickFrom(linePool), LOG_WARNING);
+        playSfx(this, 'beepWarning', { cooldownMs: 1200 });
       }
 
       if (!this.state.warnings) this.state.warnings = {};

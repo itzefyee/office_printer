@@ -3,6 +3,7 @@ import { GAME_WIDTH, GAME_HEIGHT, PHASE_LABELS } from '../game/config.js';
 import { endings, pickFrom } from '../game/data/flavor.js';
 import { METERS, getMeter } from '../game/data/meters.js';
 import { createButton } from '../ui/Button.js';
+import { playSfx, stopHum } from '../game/audio/sfx.js';
 
 export default class ResultsScene extends Phaser.Scene {
   constructor() {
@@ -23,6 +24,13 @@ export default class ResultsScene extends Phaser.Scene {
       summary: this.reason,
       memos: ['The office has nothing further to add.']
     };
+
+    stopHum(this);
+    if (this.endingId === 'shift_complete') {
+      playSfx(this, 'endingWin', { cooldownMs: 0 });
+    } else {
+      playSfx(this, 'endingFail', { cooldownMs: 0 });
+    }
 
     this.add.rectangle(0, 0, GAME_WIDTH, 56, 0x14181d).setOrigin(0, 0);
     this.add.text(24, 16, 'OFFICE PRINTER 9K // SHIFT CONCLUDED', {
