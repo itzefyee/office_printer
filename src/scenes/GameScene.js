@@ -171,21 +171,34 @@ export default class GameScene extends Phaser.Scene {
   }
 
   // ---------------------------------------------------------------------------
-  // Backdrop: blueprint grid + scanline hint behind everything.
+  // Backdrop: blueprint schematic art + scanline hint behind everything.
   // ---------------------------------------------------------------------------
   drawBackdrop() {
     this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, COLORS.surface)
       .setOrigin(0, 0);
 
-    const grid = this.add.graphics();
-    grid.fillStyle(COLORS.outlineVar, 0.35);
-    const step = 28;
-    for (let gx = step; gx < GAME_WIDTH; gx += step) {
-      for (let gy = step; gy < GAME_HEIGHT; gy += step) {
-        grid.fillRect(gx, gy, 1, 1);
-      }
+    const tex = this.textures.get('printerBackdrop');
+    const source = tex?.getSourceImage?.();
+    const imgW = source?.width ?? GAME_WIDTH;
+    const imgH = source?.height ?? GAME_HEIGHT;
+
+    // Layer 1: blurred "cover" fill, so edges extend naturally.
+    const coverScale = Math.max(GAME_WIDTH / imgW, GAME_HEIGHT / imgH);
+    const cover = this.add.image(GAME_WIDTH / 2, GAME_HEIGHT / 2, 'printerBackdrop')
+      .setOrigin(0.5, 0.5)
+      .setScale(coverScale)
+      .setAlpha(0.4);
+
+    if (cover.postFX?.addBlur) {
+      cover.postFX.addBlur(1, 6, 6, 1, 0xffffff, 6);
     }
-    grid.setAlpha(0.6);
+
+    // Layer 2: centered "contain" image, slightly shrunk so the full art reads.
+    const containScale = Math.min(GAME_WIDTH / imgW, GAME_HEIGHT / imgH) * 0.70;
+    this.add.image(GAME_WIDTH / 2, GAME_HEIGHT / 2, 'printerBackdrop')
+      .setOrigin(0.5, 0.5)
+      .setScale(containScale)
+      .setAlpha(0.40);
 
     // Scanline ghost: thin horizontal lines at low alpha.
     const scan = this.add.graphics();
