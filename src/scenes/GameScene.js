@@ -133,7 +133,8 @@ export default class GameScene extends Phaser.Scene {
       applyEffects(this.state, effect);
     }
 
-    applyEffects(this.state, { dayTime: 1 });
+    // Pacing rule: time advances on the global tick (and on special actions like reboot),
+    // not on every button press. This keeps “playing quickly” from ending the shift early.
     this.state.phase = phaseFor(this.state.dayTime);
 
     this.logResolution(job, actionKey);
