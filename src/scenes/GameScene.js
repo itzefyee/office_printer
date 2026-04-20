@@ -18,6 +18,7 @@ import { checkEndings } from '../game/state/checkEndings.js';
 import { getFirstJob, getRandomJob } from '../game/data/jobs.js';
 import { incidents } from '../game/data/incidents.js';
 import { pickModifier } from '../game/data/modifiers.js';
+import { METERS, isMeterInDanger } from '../game/data/meters.js';
 import {
   actionResponses,
   officeReactions,
@@ -250,14 +251,18 @@ export default class GameScene extends Phaser.Scene {
   }
 
   checkWarnings() {
-    const meterKeys = Object.keys(this.state.warnings ?? {});
-    meterKeys.forEach(key => {
+    METERS.forEach(meter => {
+      const key = meter.key;
       const value = this.state[key] ?? 0;
-      const inDanger = meterKeyInDanger(key, value);
-      const wasInDanger = !!this.state.warnings[key];
+      const inDanger = isMeterInDanger(meter, value);
+      const wasInDanger = !!this.state.warnings?.[key];
+
       if (inDanger && !wasInDanger) {
-        this.log(pickFrom(warningLines[key]), LOG_WARNING);
+        const linePool = warningLines[key];
+        if (linePool) this.log(pickFrom(linePool), LOG_WARNING);
       }
+
+      if (!this.state.warnings) this.state.warnings = {};
       this.state.warnings[key] = inDanger;
     });
   }
@@ -314,13 +319,4 @@ export default class GameScene extends Phaser.Scene {
     this.logPanel?.update(this.state.log);
     this.actionButtons?.update(this.state, this.state.currentJob);
   }
-}
-
-function meterKeyInDanger(key, value) {
-  if (key === 'heat' || key === 'blame') return value >= 80;
-  if (key === 'toner') return value <= 15;
-  if (key === 'paperPath') return value <= 25;
-  if (key === 'memory') return value <= 20;
-  if (key === 'dignity') return value <= 20;
-  return false;
 }
