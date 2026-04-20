@@ -85,7 +85,6 @@ export default class GameScene extends Phaser.Scene {
 
     this.buildLayout();
     this.refresh();
-    this.maybeShowTutorial();
 
     this.tickTimer = this.time.addEvent({
       delay: TICK_MS,
@@ -93,6 +92,8 @@ export default class GameScene extends Phaser.Scene {
       callback: () => this.onTick(),
       callbackScope: this
     });
+
+    this.maybeShowTutorial();
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.teardown, this);
     this.events.once(Phaser.Scenes.Events.DESTROY, this.teardown, this);
@@ -387,6 +388,7 @@ export default class GameScene extends Phaser.Scene {
 
   showTutorialOverlay() {
     if (this.tutorial) return;
+    if (this.tickTimer) this.tickTimer.paused = true;
 
     const pages = [
       {
@@ -512,5 +514,6 @@ export default class GameScene extends Phaser.Scene {
       try { o.destroy(); } catch {}
     });
     this.tutorial = null;
+    if (this.tickTimer) this.tickTimer.paused = false;
   }
 }
