@@ -1,14 +1,6 @@
 import { GAME_WIDTH, MAX_DAY_TIME, PHASE_LABELS, QUEUE_OVERFLOW, QUEUE_WARN } from '../game/config.js';
+import { METERS, isMeterInDanger, isMeterNearDanger } from '../game/data/meters.js';
 import { drawPanel } from './panel.js';
-
-const METERS = [
-  { key: 'toner',     label: 'Toner',      dangerLow: 15 },
-  { key: 'heat',      label: 'Heat',       dangerHigh: 80 },
-  { key: 'paperPath', label: 'Paper Path', dangerLow: 25 },
-  { key: 'memory',    label: 'Memory',     dangerLow: 20 },
-  { key: 'dignity',   label: 'Dignity',    dangerLow: 20 },
-  { key: 'blame',     label: 'Blame',      dangerHigh: 75 }
-];
 
 const METER_PANEL_WIDTH = 544;
 const METER_BAR_INNER = METER_PANEL_WIDTH - 32;
@@ -160,14 +152,8 @@ export class Hud {
 }
 
 function meterColor(meter, value) {
-  if (meter.dangerHigh !== undefined) {
-    if (value >= meter.dangerHigh) return COLOR_DANGER;
-    if (value >= meter.dangerHigh - 15) return COLOR_WARN;
-  }
-  if (meter.dangerLow !== undefined) {
-    if (value <= meter.dangerLow) return COLOR_DANGER;
-    if (value <= meter.dangerLow + 15) return COLOR_WARN;
-  }
+  if (isMeterInDanger(meter, value)) return COLOR_DANGER;
+  if (isMeterNearDanger(meter, value, 15)) return COLOR_WARN;
   return COLOR_OK;
 }
 

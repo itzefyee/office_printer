@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { GAME_WIDTH, GAME_HEIGHT } from '../game/config.js';
 import { createButton } from '../ui/Button.js';
+import { playSfx, startHum } from '../game/audio/sfx.js';
 
 export default class TitleScene extends Phaser.Scene {
   constructor() {
@@ -44,7 +45,11 @@ export default class TitleScene extends Phaser.Scene {
       width: btnW,
       height: btnH,
       label: 'BEGIN SHIFT',
-      onClick: () => this.scene.start('GameScene')
+      onClick: () => {
+        playSfx(this, 'uiConfirm', { cooldownMs: 0 });
+        startHum(this);
+        this.scene.start('GameScene');
+      }
     });
 
     this.add.text(cx, GAME_HEIGHT - 40, 'v0.1 prototype', {

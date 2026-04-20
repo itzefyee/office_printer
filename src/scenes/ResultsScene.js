@@ -1,7 +1,9 @@
 import Phaser from 'phaser';
 import { GAME_WIDTH, GAME_HEIGHT, PHASE_LABELS } from '../game/config.js';
 import { endings, pickFrom } from '../game/data/flavor.js';
+import { METERS, getMeter } from '../game/data/meters.js';
 import { createButton } from '../ui/Button.js';
+import { playSfx, stopHum } from '../game/audio/sfx.js';
 
 export default class ResultsScene extends Phaser.Scene {
   constructor() {
@@ -12,6 +14,7 @@ export default class ResultsScene extends Phaser.Scene {
     this.endingId = data?.endingId ?? 'catastrophic_jam';
     this.reason = data?.reason ?? 'Shift concluded without comment.';
     this.stats = data?.finalStats ?? null;
+    this.fatalMeterKey = data?.fatalMeterKey ?? null;
   }
 
   create() {
@@ -22,6 +25,13 @@ export default class ResultsScene extends Phaser.Scene {
       memos: ['The office has nothing further to add.']
     };
 
+    stopHum(this);
+    if (this.endingId === 'shift_complete') {
+      playSfx(this, 'endingWin', { cooldownMs: 0 });
+    } else {
+      playSfx(this, 'endingFail', { cooldownMs: 0 });
+    }
+
     this.add.rectangle(0, 0, GAME_WIDTH, 56, 0x14181d).setOrigin(0, 0);
     this.add.text(24, 16, 'OFFICE PRINTER 9K // SHIFT CONCLUDED', {
       fontFamily: 'monospace',
@@ -31,6 +41,11 @@ export default class ResultsScene extends Phaser.Scene {
 
     this.addLine(cx, 120, ending.title, '48px', '#d45a4a', true);
     this.addLine(cx, 172, `Ending ID: ${this.endingId}`, '14px', '#7d858f', true);
+    if (this.fatalMeterKey) {
+      const meter = getMeter(this.fatalMeterKey);
+      const label = meter?.label ?? this.fatalMeterKey;
+      this.addLine(cx, 190, `Cause: ${label}`, '14px', '#7d858f', true);
+    }
 
     this.addLine(cx, 220, ending.summary, '18px', '#d0d7de', true, 960);
     this.addLine(cx, 268, this.reason, '14px', '#9aa0a6', true, 960);
@@ -91,14 +106,7 @@ export default class ResultsScene extends Phaser.Scene {
       ['Queue at end',   this.stats.queueAtEnd]
     ];
 
-    const right = [
-      ['Toner',      this.stats.toner],
-      ['Heat',       this.stats.heat],
-      ['Paper Path', this.stats.paperPath],
-      ['Memory',     this.stats.memory],
-      ['Dignity',    this.stats.dignity],
-      ['Blame',      this.stats.blame]
-    ];
+    const right = METERS.map(m => [m.label, this.stats[m.key]]);
 
     this.drawStatColumn(px + 24,       y + 44, left);
     this.drawStatColumn(px + panelW/2 + 12, y + 44, right);

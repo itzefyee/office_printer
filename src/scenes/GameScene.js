@@ -18,6 +18,7 @@ import { checkEndings } from '../game/state/checkEndings.js';
 import { getFirstJob, getRandomJob } from '../game/data/jobs.js';
 import { incidents } from '../game/data/incidents.js';
 import { pickModifier } from '../game/data/modifiers.js';
+import { METERS, isMeterInDanger } from '../game/data/meters.js';
 import {
   actionResponses,
   officeReactions,
@@ -28,6 +29,7 @@ import {
   managerEscalationLines,
   pickFrom
 } from '../game/data/flavor.js';
+import { playSfx } from '../game/audio/sfx.js';
 import { Hud } from '../ui/Hud.js';
 import { JobPanel } from '../ui/JobPanel.js';
 import { LogPanel } from '../ui/LogPanel.js';
@@ -113,6 +115,8 @@ export default class GameScene extends Phaser.Scene {
 
     if (this.actionButtons?.isDisabled(actionKey)) return;
 
+    this.playActionSfx(actionKey);
+
     const job = this.state.currentJob;
     const choice = job?.choices?.find(c => c.key === actionKey);
     const effect = choice?.effect ?? DEFAULT_ACTION_EFFECTS[actionKey] ?? {};
@@ -136,6 +140,16 @@ export default class GameScene extends Phaser.Scene {
     this.checkWarnings();
     this.advanceCurrentJob();
     this.refresh();
+  }
+
+  playActionSfx(actionKey) {
+    if (!actionKey) return;
+    if (actionKey === 'accept') playSfx(this, 'paperFeed', { cooldownMs: 0 });
+    else if (actionKey === 'reboot') playSfx(this, 'reboot', { cooldownMs: 0 });
+    else if (actionKey === 'purgeQueue') playSfx(this, 'jamAlarm', { cooldownMs: 0 });
+    else if (actionKey === 'reject') playSfx(this, 'uiError', { cooldownMs: 0 });
+    else if (actionKey === 'fakeError') playSfx(this, 'beepWarning', { cooldownMs: 0 });
+    else if (actionKey === 'reroute') playSfx(this, 'uiClick', { cooldownMs: 0 });
   }
 
   logResolution(job, actionKey) {
@@ -236,6 +250,7 @@ export default class GameScene extends Phaser.Scene {
       const incident = incidents[Math.floor(Math.random() * incidents.length)];
       applyEffects(this.state, incident.effect);
       this.log(incident.text, LOG_INCIDENT);
+      playSfx(this, 'beepWarning', { cooldownMs: 600 });
     }
 
     const managerChance = MANAGER_CHANCE[this.state.phase] ?? 0;
@@ -250,14 +265,19 @@ export default class GameScene extends Phaser.Scene {
   }
 
   checkWarnings() {
-    const meterKeys = Object.keys(this.state.warnings ?? {});
-    meterKeys.forEach(key => {
+    METERS.forEach(meter => {
+      const key = meter.key;
       const value = this.state[key] ?? 0;
-      const inDanger = meterKeyInDanger(key, value);
-      const wasInDanger = !!this.state.warnings[key];
+      const inDanger = isMeterInDanger(meter, value);
+      const wasInDanger = !!this.state.warnings?.[key];
+
       if (inDanger && !wasInDanger) {
-        this.log(pickFrom(warningLines[key]), LOG_WARNING);
+        const linePool = warningLines[key];
+        if (linePool) this.log(pickFrom(linePool), LOG_WARNING);
+        playSfx(this, 'beepWarning', { cooldownMs: 1200 });
       }
+
+      if (!this.state.warnings) this.state.warnings = {};
       this.state.warnings[key] = inDanger;
     });
   }
@@ -268,12 +288,14 @@ export default class GameScene extends Phaser.Scene {
     this.state.gameOver = true;
     this.state.endingId = ending.endingId;
     this.state.endingReason = ending.reason;
+    this.state.fatalMeterKey = ending.fatalMeterKey ?? null;
     this.teardown();
     this.refresh();
     this.time.delayedCall(450, () => {
       this.scene.start('ResultsScene', {
         endingId: ending.endingId,
         reason: ending.reason,
+        fatalMeterKey: ending.fatalMeterKey ?? null,
         finalStats: this.snapshotStats()
       });
     });
@@ -314,13 +336,4 @@ export default class GameScene extends Phaser.Scene {
     this.logPanel?.update(this.state.log);
     this.actionButtons?.update(this.state, this.state.currentJob);
   }
-}
-
-function meterKeyInDanger(key, value) {
-  if (key === 'heat' || key === 'blame') return value >= 80;
-  if (key === 'toner') return value <= 15;
-  if (key === 'paperPath') return value <= 25;
-  if (key === 'memory') return value <= 20;
-  if (key === 'dignity') return value <= 20;
-  return false;
 }
