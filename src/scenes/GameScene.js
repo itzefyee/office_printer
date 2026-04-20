@@ -28,39 +28,16 @@ import {
   managerEscalationLines,
   pickFrom
 } from '../game/data/flavor.js';
-import { createButton } from '../ui/Button.js';
-
-// Fixed action buttons. Positions stay stable for the entire run.
-const ACTIONS = [
-  { key: 'accept',     label: 'Accept' },
-  { key: 'reject',     label: 'Reject' },
-  { key: 'fakeError',  label: 'Fake Error' },
-  { key: 'reroute',    label: 'Reroute' },
-  { key: 'purgeQueue', label: 'Purge Queue' },
-  { key: 'reboot',     label: 'Reboot' }
-];
-
-const METERS = [
-  { key: 'toner',     label: 'Toner',      dangerLow: 15 },
-  { key: 'heat',      label: 'Heat',       dangerHigh: 80 },
-  { key: 'paperPath', label: 'Paper Path', dangerLow: 25 },
-  { key: 'memory',    label: 'Memory',     dangerLow: 20 },
-  { key: 'dignity',   label: 'Dignity',    dangerLow: 20 },
-  { key: 'blame',     label: 'Blame',      dangerHigh: 75 }
-];
+import { Hud } from '../ui/Hud.js';
+import { JobPanel } from '../ui/JobPanel.js';
+import { LogPanel } from '../ui/LogPanel.js';
+import { ActionButtons } from '../ui/ActionButtons.js';
 
 const MANAGER_CHANCE = { earlyShift: 0, midShift: 0.12, lateShift: 0.22 };
 const OVERHEAT_THRESHOLD = 75;
 const OVERHEAT_CHANCE = 0.35;
 
 const MAX_LOG_LINES = 6;
-const METER_PANEL_WIDTH = 544;
-const METER_BAR_INNER = METER_PANEL_WIDTH - 32;
-
-const COLOR_OK = 0x4f8cc9;
-const COLOR_WARN = 0xd4a34a;
-const COLOR_DANGER = 0xd45a4a;
-const COLOR_LAMP_DIM = 0x2a2f36;
 
 const LOG_DEFAULT  = '#b7bec6';
 const LOG_SYSTEM   = '#5a9fd4';
@@ -70,10 +47,6 @@ const LOG_GOOD     = '#8ad07a';
 const LOG_PHASE    = '#9b8fca';
 const LOG_OFFICE   = '#6e7379';
 const LOG_ACTION   = '#c9d1d9';
-
-const PANEL_FILL = 0x151a1f;
-const PANEL_HEADER_FILL = 0x1f2630;
-const PANEL_STROKE = 0x2a3038;
 
 // Fallback effects for actions a job does not explicitly define.
 // Keeps every button useful without forcing every job to list every action.
@@ -101,9 +74,6 @@ export default class GameScene extends Phaser.Scene {
     this.log(`Shift begins. Machine initialized. No one greeted it.`, LOG_SYSTEM);
     this.log(`[CONDITION] ${modifier.label} — ${modifier.description}`, LOG_SYSTEM);
 
-    this.buttons = {};
-    this.meterLamps = {};
-
     this.buildLayout();
     this.refresh();
 
@@ -129,216 +99,10 @@ export default class GameScene extends Phaser.Scene {
   // Layout
   // =========================================================================
   buildLayout() {
-    this.drawTopStrip();
-    this.drawJobPanel();
-    this.drawMeterPanel();
-    this.drawLogPanel();
-    this.drawActionButtons();
-  }
-
-  drawPanel(x, y, w, h, title) {
-    const body = this.add.rectangle(x, y, w, h, PANEL_FILL).setOrigin(0, 0);
-    body.setStrokeStyle(1, PANEL_STROKE);
-    const header = this.add.rectangle(x, y, w, 32, PANEL_HEADER_FILL).setOrigin(0, 0);
-    header.setStrokeStyle(1, PANEL_STROKE);
-    this.add.text(x + 12, y + 6, title, {
-      fontFamily: 'monospace',
-      fontSize: '16px',
-      color: '#c9d1d9'
-    });
-  }
-
-  drawTopStrip() {
-    const strip = this.add.rectangle(0, 0, GAME_WIDTH, 56, 0x14181d).setOrigin(0, 0);
-    strip.setStrokeStyle(1, PANEL_STROKE);
-
-    // Power lamp next to the title gives the strip a console feel.
-    this.add.circle(24, 28, 5, 0x8ad07a);
-    this.add.text(40, 16, 'OFFICE PRINTER 9K', {
-      fontFamily: 'monospace',
-      fontSize: '18px',
-      color: '#e6e6e6'
-    });
-
-    this.add.text(288, 16, '//', {
-      fontFamily: 'monospace',
-      fontSize: '16px',
-      color: '#3a4048'
-    });
-
-    this.phaseText = this.add.text(314, 16, '', {
-      fontFamily: 'monospace',
-      fontSize: '16px',
-      color: '#9aa0a6'
-    });
-
-    this.add.text(560, 16, '//', {
-      fontFamily: 'monospace',
-      fontSize: '16px',
-      color: '#3a4048'
-    });
-
-    this.queueText = this.add.text(586, 16, '', {
-      fontFamily: 'monospace',
-      fontSize: '16px',
-      color: '#9aa0a6'
-    });
-
-    this.modifierText = this.add.text(760, 16, '', {
-      fontFamily: 'monospace',
-      fontSize: '13px',
-      color: '#6e7379'
-    });
-
-    this.topStatus = this.add.text(GAME_WIDTH - 24, 16, '', {
-      fontFamily: 'monospace',
-      fontSize: '16px',
-      color: '#9aa0a6'
-    }).setOrigin(1, 0);
-
-    this.add.rectangle(0, 53, GAME_WIDTH, 3, 0x1a2028).setOrigin(0, 0);
-    this.shiftBar = this.add.rectangle(0, 53, 4, 3, 0x8ad07a).setOrigin(0, 0);
-  }
-
-  drawJobPanel() {
-    const x = 32;
-    const y = 80;
-    const w = 640;
-    const h = 280;
-
-    this.drawPanel(x, y, w, h, '// 01  INCOMING REQUEST');
-
-    this.urgencyBadge = this.add.text(x + w - 12, y + 6, '', {
-      fontFamily: 'monospace',
-      fontSize: '14px',
-      color: '#ffffff',
-      backgroundColor: '#3a4048',
-      padding: { left: 8, right: 8, top: 2, bottom: 2 }
-    }).setOrigin(1, 0);
-
-    this.jobTitleText = this.add.text(x + 16, y + 52, '', {
-      fontFamily: 'monospace',
-      fontSize: '26px',
-      color: '#ffffff'
-    });
-
-    this.jobMetaText = this.add.text(x + 16, y + 94, '', {
-      fontFamily: 'monospace',
-      fontSize: '13px',
-      color: '#7d858f'
-    });
-
-    this.jobDescText = this.add.text(x + 16, y + 128, '', {
-      fontFamily: 'monospace',
-      fontSize: '18px',
-      color: '#d0d7de',
-      wordWrap: { width: w - 32 }
-    });
-
-    this.jobRiskLabel = this.add.text(x + 16, y + h - 68, 'PROJECTED IMPACT', {
-      fontFamily: 'monospace',
-      fontSize: '11px',
-      color: '#5a6068'
-    });
-
-    this.jobRiskText = this.add.text(x + 16, y + h - 50, '', {
-      fontFamily: 'monospace',
-      fontSize: '12px',
-      color: '#9aa0a6',
-      wordWrap: { width: w - 32 }
-    });
-
-    this.jobChoicesText = this.add.text(x + 16, y + h - 24, '', {
-      fontFamily: 'monospace',
-      fontSize: '11px',
-      color: '#5a6068',
-      wordWrap: { width: w - 32 }
-    });
-  }
-
-  drawMeterPanel() {
-    const x = 704;
-    const y = 80;
-    const w = METER_PANEL_WIDTH;
-    const h = 400;
-
-    this.drawPanel(x, y, w, h, '// 02  MACHINE STATUS');
-
-    this.meterTexts = {};
-    this.meterBars = {};
-    this.meterLampTexts = {};
-
-    METERS.forEach((meter, i) => {
-      const row = y + 52 + i * 54;
-
-      this.meterLamps[meter.key] = this.add.circle(x + 16 + 4, row + 7, 5, COLOR_LAMP_DIM);
-
-      this.add.text(x + 34, row, meter.label.toUpperCase(), {
-        fontFamily: 'monospace',
-        fontSize: '14px',
-        color: '#9aa0a6'
-      });
-
-      this.meterTexts[meter.key] = this.add.text(x + w - 16, row, '0', {
-        fontFamily: 'monospace',
-        fontSize: '14px',
-        color: '#e6e6e6'
-      }).setOrigin(1, 0);
-
-      this.add.rectangle(x + 16, row + 22, METER_BAR_INNER, 10, 0x222830).setOrigin(0, 0);
-      this.meterBars[meter.key] = this.add.rectangle(x + 16, row + 22, 0, 10, COLOR_OK)
-        .setOrigin(0, 0);
-    });
-  }
-
-  drawLogPanel() {
-    const x = 32;
-    const y = 376;
-    const w = 640;
-    const h = 196;
-
-    this.drawPanel(x, y, w, h, '// 03  EVENT LOG');
-
-    this.logLines = [];
-    for (let i = 0; i < MAX_LOG_LINES; i++) {
-      this.logLines.push(this.add.text(x + 12, y + 40 + i * 26, '', {
-        fontFamily: 'monospace',
-        fontSize: '13px',
-        color: LOG_DEFAULT,
-        wordWrap: { width: w - 24 }
-      }));
-    }
-  }
-
-  drawActionButtons() {
-    const totalWidth = GAME_WIDTH - 64;
-    const count = ACTIONS.length;
-    const gap = 12;
-    const btnW = (totalWidth - gap * (count - 1)) / count;
-    const y = 596;
-    const h = 72;
-
-    this.add.text(32, y - 18, '// 04  RESPONSE PANEL', {
-      fontFamily: 'monospace',
-      fontSize: '12px',
-      color: '#5a6068'
-    });
-
-    ACTIONS.forEach((action, i) => {
-      const x = 32 + i * (btnW + gap);
-      const button = createButton(this, {
-        x, y, width: btnW, height: h,
-        label: action.label,
-        onClick: () => this.resolveChoice(action.key)
-      });
-      this.buttons[action.key] = button;
-    });
-
-    this.add.text(32, y + h + 12, 'Button positions are permanent. The printer has requested they remain permanent.', {
-      fontFamily: 'monospace',
-      fontSize: '12px',
-      color: '#5a6068'
-    });
+    this.hud = new Hud(this);
+    this.jobPanel = new JobPanel(this);
+    this.logPanel = new LogPanel(this);
+    this.actionButtons = new ActionButtons(this, { onAction: (key) => this.resolveChoice(key) });
   }
 
   // =========================================================================
@@ -347,8 +111,7 @@ export default class GameScene extends Phaser.Scene {
   resolveChoice(actionKey) {
     if (this.state.gameOver) return;
 
-    const button = this.buttons[actionKey];
-    if (button && button.isDisabled()) return;
+    if (this.actionButtons?.isDisabled(actionKey)) return;
 
     const job = this.state.currentJob;
     const choice = job?.choices?.find(c => c.key === actionKey);
@@ -487,14 +250,15 @@ export default class GameScene extends Phaser.Scene {
   }
 
   checkWarnings() {
-    METERS.forEach(meter => {
-      const value = this.state[meter.key] ?? 0;
-      const inDanger = meterInDanger(meter, value);
-      const wasInDanger = !!this.state.warnings[meter.key];
+    const meterKeys = Object.keys(this.state.warnings ?? {});
+    meterKeys.forEach(key => {
+      const value = this.state[key] ?? 0;
+      const inDanger = meterKeyInDanger(key, value);
+      const wasInDanger = !!this.state.warnings[key];
       if (inDanger && !wasInDanger) {
-        this.log(pickFrom(warningLines[meter.key]), LOG_WARNING);
+        this.log(pickFrom(warningLines[key]), LOG_WARNING);
       }
-      this.state.warnings[meter.key] = inDanger;
+      this.state.warnings[key] = inDanger;
     });
   }
 
@@ -545,122 +309,18 @@ export default class GameScene extends Phaser.Scene {
   }
 
   refresh() {
-    this.phaseText.setText(`PHASE: ${PHASE_LABELS[this.state.phase].toUpperCase()}`);
-
-    const q = this.state.queue.length;
-    this.queueText.setText(`QUEUE: ${q}`);
-    if (q >= QUEUE_OVERFLOW) {
-      this.queueText.setColor('#d45a4a');
-    } else if (q >= QUEUE_WARN) {
-      this.queueText.setColor('#d4a34a');
-    } else {
-      this.queueText.setColor('#9aa0a6');
-    }
-
-    if (this.state.modifier) {
-      this.modifierText.setText(`// ${this.state.modifier.label.toUpperCase()}`);
-    }
-    this.topStatus.setText(`DAY 1  //  T+${this.state.dayTime}`);
-
-    const shiftProgress = Math.min(1, this.state.dayTime / MAX_DAY_TIME);
-    this.shiftBar.width = Math.max(4, GAME_WIDTH * shiftProgress);
-    this.shiftBar.fillColor = shiftProgress >= 0.85 ? 0xd45a4a
-      : shiftProgress >= 0.6 ? 0xd4a34a
-      : 0x8ad07a;
-
-    const job = this.state.currentJob;
-    if (job) {
-      this.jobTitleText.setText(job.title);
-      this.jobMetaText.setText(`Category: ${job.category}    Urgency: ${job.urgency}`);
-      this.jobDescText.setText(job.description);
-      this.jobRiskText.setText(formatRisk(job.risk));
-      const keys = job.choices?.map(c => c.key).join(', ') ?? '';
-      this.jobChoicesText.setText(`Recommended responses: ${keys}`);
-      this.urgencyBadge.setText(`URGENCY ${job.urgency}`);
-      const urgencyColor = job.urgency >= 3 ? '#d45a4a'
-        : job.urgency === 2 ? '#d4a34a'
-        : '#3a4048';
-      this.urgencyBadge.setBackgroundColor(urgencyColor);
-    }
-
-    METERS.forEach(meter => {
-      const value = this.state[meter.key] ?? 0;
-      this.meterTexts[meter.key].setText(String(Math.round(value)));
-      const fill = Math.max(0, Math.min(100, value)) / 100;
-      this.meterBars[meter.key].width = METER_BAR_INNER * fill;
-
-      const color = meterColor(meter, value);
-      this.meterBars[meter.key].fillColor = color;
-      this.meterLamps[meter.key].fillColor = color === COLOR_OK ? COLOR_LAMP_DIM : color;
-      this.meterTexts[meter.key].setColor(color === COLOR_DANGER ? '#d45a4a'
-        : color === COLOR_WARN ? '#d4a34a'
-        : '#e6e6e6');
-    });
-
-    const displayLog = this.state.log.slice().reverse();
-    this.logLines.forEach((line, i) => {
-      const entry = displayLog[i];
-      if (entry) {
-        line.setText(entry.text);
-        line.setColor(entry.color);
-      } else {
-        line.setText('');
-      }
-    });
-    this.refreshButtons();
-  }
-
-  refreshButtons() {
-    const job = this.state.currentJob;
-    const definedKeys = new Set(job?.choices?.map(c => c.key) ?? []);
-
-    ACTIONS.forEach(action => {
-      const button = this.buttons[action.key];
-      if (!button) return;
-
-      const visualState = this.computeButtonState(action.key, definedKeys);
-      button.setState(visualState);
-    });
-  }
-
-  computeButtonState(actionKey, definedKeys) {
-    if (this.state.gameOver) return 'disabled';
-
-    if (actionKey === 'purgeQueue') {
-      return this.state.queue.length === 0 ? 'disabled' : 'normal';
-    }
-    if (actionKey === 'reboot') {
-      return this.state.memory >= 95 ? 'muted' : 'normal';
-    }
-    if (definedKeys.has(actionKey)) return 'primary';
-    return 'muted';
+    this.hud?.update(this.state);
+    this.jobPanel?.update(this.state.currentJob);
+    this.logPanel?.update(this.state.log);
+    this.actionButtons?.update(this.state, this.state.currentJob);
   }
 }
 
-function meterColor(meter, value) {
-  if (meter.dangerHigh !== undefined) {
-    if (value >= meter.dangerHigh) return COLOR_DANGER;
-    if (value >= meter.dangerHigh - 15) return COLOR_WARN;
-  }
-  if (meter.dangerLow !== undefined) {
-    if (value <= meter.dangerLow) return COLOR_DANGER;
-    if (value <= meter.dangerLow + 15) return COLOR_WARN;
-  }
-  return COLOR_OK;
-}
-
-function meterInDanger(meter, value) {
-  if (meter.dangerHigh !== undefined && value >= meter.dangerHigh) return true;
-  if (meter.dangerLow  !== undefined && value <= meter.dangerLow)  return true;
+function meterKeyInDanger(key, value) {
+  if (key === 'heat' || key === 'blame') return value >= 80;
+  if (key === 'toner') return value <= 15;
+  if (key === 'paperPath') return value <= 25;
+  if (key === 'memory') return value <= 20;
+  if (key === 'dignity') return value <= 20;
   return false;
-}
-
-// Formats a job's risk bag into a compact preview line.
-function formatRisk(risk) {
-  if (!risk) return 'Impact profile unspecified.';
-  const parts = Object.entries(risk).map(([key, val]) => {
-    const sign = val > 0 ? '+' : '';
-    return `${key}:${sign}${val}`;
-  });
-  return parts.join('   ');
 }
