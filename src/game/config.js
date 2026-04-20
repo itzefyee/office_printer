@@ -63,7 +63,7 @@ export const gameConfig = {
   parent: 'game',
   width: GAME_WIDTH,
   height: GAME_HEIGHT,
-  backgroundColor: '#0b0d10',
+  backgroundColor: '#0a0a0a',
   scale: {
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH

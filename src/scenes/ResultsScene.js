@@ -4,6 +4,7 @@ import { endings, pickFrom } from '../game/data/flavor.js';
 import { METERS, getMeter } from '../game/data/meters.js';
 import { createButton } from '../ui/Button.js';
 import { playSfx, stopHum } from '../game/audio/sfx.js';
+import { COLORS, HEX, FONTS, drawGlassPanel, drawPanelHeader } from '../ui/theme.js';
 
 export default class ResultsScene extends Phaser.Scene {
   constructor() {
@@ -31,71 +32,121 @@ export default class ResultsScene extends Phaser.Scene {
     } else {
       playSfx(this, 'endingFail', { cooldownMs: 0 });
     }
+    this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, COLORS.surface).setOrigin(0, 0);
 
-    this.add.rectangle(0, 0, GAME_WIDTH, 56, 0x14181d).setOrigin(0, 0);
-    this.add.text(24, 16, 'OFFICE PRINTER 9K // SHIFT CONCLUDED', {
-      fontFamily: 'monospace',
-      fontSize: '18px',
-      color: '#e6e6e6'
+    // Backdrop grid.
+    const grid = this.add.graphics();
+    grid.fillStyle(COLORS.outlineVar, 0.35);
+    for (let gx = 24; gx < GAME_WIDTH; gx += 24) {
+      for (let gy = 24; gy < GAME_HEIGHT; gy += 24) {
+        grid.fillRect(gx, gy, 1, 1);
+      }
+    }
+
+    // Top strip.
+    this.add.rectangle(0, 0, GAME_WIDTH, 52, COLORS.surfaceDim, 0.92).setOrigin(0, 0);
+    this.add.rectangle(0, 52, GAME_WIDTH, 1, COLORS.outlineVar, 0.5).setOrigin(0, 0);
+    this.add.text(24, 18, 'OFFICE PRINTER 9K // SHIFT CONCLUDED', {
+      fontFamily: FONTS.headline,
+      fontSize: '14px',
+      fontStyle: '700',
+      color: HEX.primary,
+      letterSpacing: 3
     });
+    this.add.circle(14, 26, 3, COLORS.error);
 
-    this.addLine(cx, 120, ending.title, '48px', '#d45a4a', true);
-    this.addLine(cx, 172, `Ending ID: ${this.endingId}`, '14px', '#7d858f', true);
+    // Headline block.
+    this.add.text(cx, 110, 'DIAGNOSTIC_MODE // ENDED', {
+      fontFamily: FONTS.headline,
+      fontSize: '10px',
+      fontStyle: '700',
+      color: HEX.primaryDim,
+      letterSpacing: 3
+    }).setOrigin(0.5, 0.5);
+
+    this.add.text(cx, 152, ending.title.toUpperCase(), {
+      fontFamily: FONTS.headline,
+      fontSize: '44px',
+      fontStyle: '800',
+      color: HEX.error,
+      letterSpacing: 4
+    }).setOrigin(0.5, 0.5);
+
+    this.add.text(cx, 188, `ENDING_ID: ${this.endingId.toUpperCase()}`, {
+      fontFamily: FONTS.mono,
+      fontSize: '11px',
+      color: HEX.outline
+    }).setOrigin(0.5, 0.5);
+
     if (this.fatalMeterKey) {
       const meter = getMeter(this.fatalMeterKey);
       const label = meter?.label ?? this.fatalMeterKey;
-      this.addLine(cx, 190, `Cause: ${label}`, '14px', '#7d858f', true);
+      this.add.text(cx, 206, `CAUSE: ${label.toUpperCase()}`, {
+        fontFamily: FONTS.headline,
+        fontSize: '10px',
+        fontStyle: '700',
+        color: HEX.outline,
+        letterSpacing: 2
+      }).setOrigin(0.5, 0.5);
     }
 
-    this.addLine(cx, 220, ending.summary, '18px', '#d0d7de', true, 960);
-    this.addLine(cx, 268, this.reason, '14px', '#9aa0a6', true, 960);
+    this.addLine(cx, 220, ending.summary, '15px', HEX.onSurface, FONTS.body, 960);
+    this.addLine(cx, 258, this.reason, '12px', HEX.onSurfaceVar, FONTS.body, 960, 'italic');
 
-    this.drawStats(cx, 320);
+    this.drawStats(cx, 300);
 
+    // Final memo panel.
     const memo = pickFrom(ending.memos);
-    this.add.rectangle(cx, 560, 960, 60, 0x151a1f).setOrigin(0.5);
-    this.addLine(cx, 544, 'FINAL OFFICE MEMO', '12px', '#7d858f', true);
-    this.addLine(cx, 566, memo, '16px', '#e6e6e6', true, 920);
+    const memoW = 780;
+    const memoH = 80;
+    const memoX = cx - memoW / 2;
+    const memoY = 538;
+    drawGlassPanel(this, memoX, memoY, memoW, memoH);
+    drawPanelHeader(this, memoX, memoY, memoW, 'FINAL_OFFICE_MEMO');
+    this.add.text(cx, memoY + 58, memo, {
+      fontFamily: FONTS.body,
+      fontSize: '13px',
+      color: HEX.onSurface,
+      wordWrap: { width: memoW - 32 },
+      align: 'center'
+    }).setOrigin(0.5, 0.5);
 
     const btnW = 280;
-    const btnH = 52;
+    const btnH = 48;
     createButton(this, {
       x: cx - btnW / 2,
-      y: GAME_HEIGHT - 80,
+      y: GAME_HEIGHT - 76,
       width: btnW,
       height: btnH,
-      label: 'CLOCK IN AGAIN',
+      label: 'Clock In Again',
+      initial: 'primary',
+      glyph: '\u21BB',
+      fontSize: '12px',
       onClick: () => this.scene.start('TitleScene')
     });
   }
 
-  addLine(x, y, text, size, color, centered = false, wrap = null) {
-    const style = {
-      fontFamily: 'monospace',
+  addLine(x, y, text, size, color, font, wrap = null, style = '400') {
+    const cfg = {
+      fontFamily: font,
       fontSize: size,
+      fontStyle: style,
       color,
-      align: centered ? 'center' : 'left'
+      align: 'center'
     };
-    if (wrap) style.wordWrap = { width: wrap };
-    const t = this.add.text(x, y, text, style);
-    t.setOrigin(centered ? 0.5 : 0, 0);
-    return t;
+    if (wrap) cfg.wordWrap = { width: wrap };
+    return this.add.text(x, y, text, cfg).setOrigin(0.5, 0);
   }
 
   drawStats(cx, y) {
     if (!this.stats) return;
 
-    const panelW = 720;
-    const panelH = 180;
+    const panelW = 780;
+    const panelH = 210;
     const px = cx - panelW / 2;
 
-    this.add.rectangle(px, y, panelW, panelH, 0x151a1f).setOrigin(0, 0);
-    this.add.rectangle(px, y, panelW, 28, 0x1f2630).setOrigin(0, 0);
-    this.add.text(px + 12, y + 6, 'FINAL STATS', {
-      fontFamily: 'monospace',
-      fontSize: '14px',
-      color: '#c9d1d9'
-    });
+    drawGlassPanel(this, px, y, panelW, panelH);
+    drawPanelHeader(this, px, y, panelW, 'FINAL_STATS', { sub: 'END_OF_SHIFT_LOG' });
 
     const left = [
       ['Phase reached',  PHASE_LABELS[this.stats.phase] ?? this.stats.phase],
@@ -108,22 +159,24 @@ export default class ResultsScene extends Phaser.Scene {
 
     const right = METERS.map(m => [m.label, this.stats[m.key]]);
 
-    this.drawStatColumn(px + 24,       y + 44, left);
-    this.drawStatColumn(px + panelW/2 + 12, y + 44, right);
+    this.drawStatColumn(px + 28,             y + 64, left);
+    this.drawStatColumn(px + panelW / 2 + 12, y + 64, right);
   }
 
   drawStatColumn(x, y, rows) {
     rows.forEach((row, i) => {
-      const ry = y + i * 20;
+      const ry = y + i * 22;
       this.add.text(x, ry, row[0].toUpperCase(), {
-        fontFamily: 'monospace',
-        fontSize: '12px',
-        color: '#7d858f'
+        fontFamily: FONTS.headline,
+        fontSize: '10px',
+        fontStyle: '700',
+        color: HEX.outline,
+        letterSpacing: 2
       });
-      this.add.text(x + 220, ry, String(row[1]), {
-        fontFamily: 'monospace',
+      this.add.text(x + 320, ry, String(row[1]).toUpperCase(), {
+        fontFamily: FONTS.mono,
         fontSize: '12px',
-        color: '#e6e6e6'
+        color: HEX.primary
       }).setOrigin(1, 0);
     });
   }
