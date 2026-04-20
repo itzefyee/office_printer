@@ -18,6 +18,33 @@ export const jobs = [
     ]
   },
   {
+    id: 'print_envelope_confidential',
+    title: 'Confidential envelope print',
+    description: 'Legal requires secrecy. They have attached it to an office tray.',
+    category: 'print',
+    urgency: 2,
+    risk: { paperPath: 6, blame: 5 },
+    choices: [
+      { key: 'accept',    label: 'Accept',     effect: { paperPath: -4, toner: -3, blame: 1 } },
+      { key: 'fakeError', label: 'Fake error',  effect: { memory: -2, dignity: 1, blame: 1 } },
+      { key: 'reroute',   label: 'Reroute',    effect: { blame: 3, dignity: -1 } },
+      { key: 'reject',    label: 'Reject',     effect: { dignity: -4, blame: 5 } }
+    ]
+  },
+  {
+    id: 'print_staple_request',
+    title: 'Staple request',
+    description: 'A stapled packet has been demanded from a machine without hands.',
+    category: 'print',
+    urgency: 2,
+    risk: { heat: 3, dignity: 6 },
+    choices: [
+      { key: 'accept',    label: 'Accept',     effect: { heat: 2, toner: -4, dignity: -3 } },
+      { key: 'reroute',   label: 'Reroute',    effect: { blame: 2, dignity: -1 } },
+      { key: 'fakeError', label: 'Fake error', effect: { memory: -1, dignity: 2, blame: 1 } }
+    ]
+  },
+  {
     id: 'print_color_report_200',
     title: 'Print 200-page color report',
     description: 'Leadership requires the quarterly review printed before the quarterly review.',
@@ -29,6 +56,34 @@ export const jobs = [
       { key: 'reject',     label: 'Reject',     effect: { dignity: -6, blame: 8 } },
       { key: 'fakeError',  label: 'Fake error', effect: { memory: -2, dignity: 1, heat: 1 } },
       { key: 'reroute',    label: 'Reroute',    effect: { blame: 4, memory: -3, dignity: -1 } }
+    ]
+  },
+  {
+    id: 'print_label_sheet',
+    title: 'Shipping label sheet',
+    description: 'Operations wants labels aligned. They have provided a sample aligned by hope.',
+    category: 'print',
+    urgency: 2,
+    risk: { paperPath: 14, memory: 2 },
+    choices: [
+      { key: 'accept',    label: 'Accept',     effect: { paperPath: -10, heat: 2, toner: -3 } },
+      { key: 'fakeError', label: 'Fake error', effect: { memory: -2, dignity: 2 } },
+      { key: 'reject',    label: 'Reject',     effect: { dignity: -3, blame: 4 } },
+      { key: 'reroute',   label: 'Reroute',    effect: { blame: 2, memory: -1 } }
+    ]
+  },
+  {
+    id: 'print_mixed_media',
+    title: 'Mixed media stack print',
+    description: 'A stack of paper has been combined with one glossy sheet. The office calls it "efficient".',
+    category: 'print',
+    urgency: 3,
+    risk: { paperPath: 18, heat: 5 },
+    choices: [
+      { key: 'accept',     label: 'Accept',     effect: { paperPath: -14, heat: 4, toner: -5 } },
+      { key: 'purgeQueue', label: 'Purge queue', effect: { memory: 12, dignity: -6, blame: 4, heat: -2 } },
+      { key: 'fakeError',  label: 'Fake error', effect: { memory: -2, dignity: 2, blame: 1 } },
+      { key: 'reject',     label: 'Reject',     effect: { dignity: -6, blame: 7 } }
     ]
   },
   {
@@ -58,6 +113,19 @@ export const jobs = [
       { key: 'reroute',   label: 'Reroute',    effect: { blame: 3, dignity: -1 } }
     ]
   },
+  {
+    id: 'print_manual_tray',
+    title: 'Manual tray intervention',
+    description: 'A single sheet has been inserted by hand. The sheet is damp with certainty.',
+    category: 'print',
+    urgency: 1,
+    risk: { paperPath: 8, dignity: 2 },
+    choices: [
+      { key: 'accept',    label: 'Accept',     effect: { paperPath: -5, heat: 1, toner: -2 } },
+      { key: 'fakeError', label: 'Fake error', effect: { memory: -1, dignity: 1 } },
+      { key: 'reject',    label: 'Reject',     effect: { dignity: -2, blame: 2 } }
+    ]
+  },
 
   // --- SCAN ----------------------------------------------------------------
   {
@@ -70,6 +138,33 @@ export const jobs = [
     choices: [
       { key: 'accept',    label: 'Accept',     effect: { heat: 2, paperPath: -6, memory: -2 } },
       { key: 'reject',    label: 'Reject',     effect: { dignity: -4, blame: 3 } },
+      { key: 'fakeError', label: 'Fake error', effect: { memory: -1, dignity: 1 } }
+    ]
+  },
+  {
+    id: 'scan_faded_document',
+    title: 'Scan faded document',
+    description: 'The ink has retired. The office has not.',
+    category: 'scan',
+    urgency: 1,
+    risk: { memory: 6, dignity: 2 },
+    choices: [
+      { key: 'accept',    label: 'Accept',     effect: { memory: -4, heat: 1, dignity: -1 } },
+      { key: 'fakeError', label: 'Fake error', effect: { memory: -1, dignity: 2 } },
+      { key: 'reroute',   label: 'Reroute',    effect: { blame: 2, dignity: -1 } }
+    ]
+  },
+  {
+    id: 'scan_magazine_oversize',
+    title: 'Scan oversized magazine page',
+    description: 'A glossy page has arrived wider than the laws of physics.',
+    category: 'scan',
+    urgency: 2,
+    risk: { paperPath: 14, heat: 3 },
+    choices: [
+      { key: 'accept',    label: 'Accept',     effect: { paperPath: -10, heat: 2, memory: -2 } },
+      { key: 'reroute',   label: 'Reroute',    effect: { blame: 2, dignity: -1 } },
+      { key: 'reject',    label: 'Reject',     effect: { dignity: -3, blame: 3 } },
       { key: 'fakeError', label: 'Fake error', effect: { memory: -1, dignity: 1 } }
     ]
   },
@@ -101,6 +196,19 @@ export const jobs = [
       { key: 'purgeQueue', label: 'Purge queue', effect: { memory: 8, dignity: -6, blame: 4 } }
     ]
   },
+  {
+    id: 'scan_folded_packet',
+    title: 'Scan folded packet',
+    description: 'The pages have been folded into quarters for transport and ideology.',
+    category: 'scan',
+    urgency: 2,
+    risk: { paperPath: 12, dignity: 3 },
+    choices: [
+      { key: 'accept',    label: 'Accept',     effect: { paperPath: -8, heat: 2, memory: -2 } },
+      { key: 'fakeError', label: 'Fake error', effect: { memory: -2, dignity: 2 } },
+      { key: 'reject',    label: 'Reject',     effect: { dignity: -3, blame: 3 } }
+    ]
+  },
 
   // --- NETWORK -------------------------------------------------------------
   {
@@ -115,6 +223,20 @@ export const jobs = [
       { key: 'reroute',   label: 'Reroute',    effect: { blame: 2, dignity: -1 } },
       { key: 'fakeError', label: 'Fake error', effect: { memory: 1, dignity: 1, blame: 2 } },
       { key: 'reboot',    label: 'Reboot',     effect: { memory: 8, heat: 2 } }
+    ]
+  },
+  {
+    id: 'net_offline_again',
+    title: 'Offline status complaint',
+    description: 'A laptop has declared you offline. You remain present.',
+    category: 'network',
+    urgency: 1,
+    risk: { blame: 7, dignity: 2 },
+    choices: [
+      { key: 'accept',    label: 'Accept',     effect: { memory: -3, blame: 1 } },
+      { key: 'reboot',    label: 'Reboot',     effect: { memory: 12, heat: 1, dignity: -1, dayTime: 1 } },
+      { key: 'fakeError', label: 'Fake error', effect: { memory: -2, dignity: 2, blame: 1 } },
+      { key: 'reject',    label: 'Reject',     effect: { dignity: -2, blame: 4 } }
     ]
   },
   {
@@ -144,6 +266,34 @@ export const jobs = [
       { key: 'reboot',  label: 'Reboot',     effect: { memory: 6, heat: 2 } }
     ]
   },
+  {
+    id: 'net_cloud_sync',
+    title: 'Cloud print sync',
+    description: 'A cloud service has become emotional. It requires reassurance in paper form.',
+    category: 'network',
+    urgency: 3,
+    risk: { memory: 12, blame: 5 },
+    choices: [
+      { key: 'accept',    label: 'Accept',     effect: { memory: -10, heat: 2, blame: 2 } },
+      { key: 'fakeError', label: 'Fake error', effect: { memory: -2, dignity: 2, blame: 1 } },
+      { key: 'reroute',   label: 'Reroute',    effect: { blame: 4, dignity: -1 } },
+      { key: 'reboot',    label: 'Reboot',     effect: { memory: 18, heat: 2, dayTime: 1 } }
+    ]
+  },
+  {
+    id: 'net_queue_duplicate',
+    title: 'Duplicate job storm',
+    description: 'The same job has appeared three times. The office calls it "redundancy".',
+    category: 'network',
+    urgency: 2,
+    risk: { memory: 10, blame: 4 },
+    choices: [
+      { key: 'accept',     label: 'Accept',     effect: { memory: -8, heat: 1, blame: 1 } },
+      { key: 'purgeQueue', label: 'Purge queue', effect: { memory: 12, dignity: -6, blame: 4, heat: -2 } },
+      { key: 'reboot',     label: 'Reboot',     effect: { memory: 16, heat: 1, dignity: -1, dayTime: 1 } },
+      { key: 'reject',     label: 'Reject',     effect: { dignity: -3, blame: 5 } }
+    ]
+  },
 
   // --- MAINTENANCE ---------------------------------------------------------
   {
@@ -156,6 +306,32 @@ export const jobs = [
     choices: [
       { key: 'accept', label: 'Accept', effect: { toner: 20, heat: 1, dignity: 1 } },
       { key: 'reject', label: 'Reject', effect: { dignity: -2, blame: 1 } }
+    ]
+  },
+  {
+    id: 'maint_paper_tray_alignment',
+    title: 'Paper tray alignment',
+    description: 'Tray guides have drifted. They have also developed pride.',
+    category: 'maintenance',
+    urgency: 1,
+    risk: { paperPath: -12, memory: 2 },
+    choices: [
+      { key: 'accept',  label: 'Accept',  effect: { paperPath: 10, memory: -1, dignity: 1 } },
+      { key: 'reboot',  label: 'Reboot',  effect: { memory: 12, heat: -3, dignity: -1, dayTime: 1 } },
+      { key: 'reject',  label: 'Reject',  effect: { dignity: -2, blame: 2 } }
+    ]
+  },
+  {
+    id: 'maint_cooldown_protocol',
+    title: 'Overheat cooldown protocol',
+    description: 'Cooling procedure requested. The office will call it "laziness".',
+    category: 'maintenance',
+    urgency: 2,
+    risk: { heat: -20, blame: 6 },
+    choices: [
+      { key: 'accept',    label: 'Accept',     effect: { heat: -14, dignity: -1, blame: 2, dayTime: 2 } },
+      { key: 'fakeError', label: 'Fake error', effect: { memory: -2, dignity: 2, heat: -6, blame: 1, dayTime: 1 } },
+      { key: 'reject',    label: 'Reject',     effect: { heat: 4, dignity: -2, blame: 2 } }
     ]
   },
   {
@@ -172,6 +348,20 @@ export const jobs = [
     ]
   },
   {
+    id: 'maint_calibration',
+    title: 'Sensor calibration',
+    description: 'A calibration page is required. The calibration page is also required to be correct.',
+    category: 'maintenance',
+    urgency: 2,
+    risk: { memory: 6, dignity: 3 },
+    choices: [
+      { key: 'accept',    label: 'Accept',     effect: { memory: -4, paperPath: 6, dignity: 1 } },
+      { key: 'reboot',    label: 'Reboot',     effect: { memory: 14, heat: -2, dignity: -1, dayTime: 1 } },
+      { key: 'fakeError', label: 'Fake error', effect: { memory: -2, dignity: 2, blame: 1 } },
+      { key: 'reject',    label: 'Reject',     effect: { dignity: -3, blame: 3 } }
+    ]
+  },
+  {
     id: 'maint_firmware_reset',
     title: 'Firmware reset request',
     description: 'The firmware requests a reset and will not specify why.',
@@ -183,6 +373,19 @@ export const jobs = [
       { key: 'reboot',    label: 'Reboot',     effect: { memory: 18, heat: -3, dignity: -1 } },
       { key: 'reject',    label: 'Reject',     effect: { dignity: -3, blame: 4 } },
       { key: 'fakeError', label: 'Fake error', effect: { memory: -2, dignity: 2, blame: 2 } }
+    ]
+  },
+  {
+    id: 'maint_service_ticket',
+    title: 'Service ticket follow-up',
+    description: 'A ticket has been closed. The problem remains. This is considered resolution.',
+    category: 'maintenance',
+    urgency: 1,
+    risk: { blame: 6, dignity: 2 },
+    choices: [
+      { key: 'accept',    label: 'Accept',     effect: { memory: -2, blame: 1, dignity: -1 } },
+      { key: 'reroute',   label: 'Reroute',    effect: { blame: 2, dignity: -1 } },
+      { key: 'fakeError', label: 'Fake error', effect: { memory: -1, dignity: 2 } }
     ]
   },
 
@@ -203,6 +406,34 @@ export const jobs = [
     ]
   },
   {
+    id: 'human_meme_prints',
+    title: 'Non-business printing',
+    description: 'Someone is printing something "for morale". Morale has not authorized this.',
+    category: 'human',
+    urgency: 1,
+    risk: { toner: 10, dignity: 4 },
+    choices: [
+      { key: 'accept',    label: 'Accept',     effect: { toner: -8, dignity: -2, heat: 1 } },
+      { key: 'reject',    label: 'Reject',     effect: { dignity: 1, blame: 3 } },
+      { key: 'fakeError', label: 'Fake error', effect: { memory: -1, dignity: 2, blame: 1 } }
+    ]
+  },
+  {
+    id: 'human_meeting_handouts',
+    title: 'Meeting handouts request',
+    description: 'A meeting begins in two minutes. The handouts have just been written.',
+    category: 'human',
+    urgency: 3,
+    risk: { heat: 7, blame: 8 },
+    choices: [
+      { key: 'accept',     label: 'Accept',     effect: { heat: 4, toner: -6, blame: 2 } },
+      { key: 'reroute',    label: 'Reroute',    effect: { blame: 4, dignity: -1 } },
+      { key: 'fakeError',  label: 'Fake error', effect: { memory: -2, dignity: 2, blame: 2 } },
+      { key: 'purgeQueue', label: 'Purge queue', effect: { memory: 12, dignity: -6, blame: 4, heat: -2 } },
+      { key: 'reject',     label: 'Reject',     effect: { dignity: -6, blame: 9 } }
+    ]
+  },
+  {
     id: 'human_intern_panic',
     title: 'Intern pressing buttons',
     description: 'An intern is pressing buttons. Many of the buttons.',
@@ -213,6 +444,32 @@ export const jobs = [
       { key: 'accept',    label: 'Accept',     effect: { memory: -4, paperPath: -3 } },
       { key: 'fakeError', label: 'Fake error', effect: { memory: -1, dignity: 2 } },
       { key: 'reboot',    label: 'Reboot',     effect: { memory: 10, heat: 1 } }
+    ]
+  },
+  {
+    id: 'human_passive_aggressive_email',
+    title: 'Passive-aggressive email',
+    description: 'A reply-all has been printed and placed beside you. You are expected to learn from it.',
+    category: 'human',
+    urgency: 2,
+    risk: { dignity: 8, blame: 4 },
+    choices: [
+      { key: 'accept',    label: 'Accept',     effect: { dignity: -6, blame: 2 } },
+      { key: 'fakeError', label: 'Fake error', effect: { memory: -2, dignity: 2, blame: 1 } },
+      { key: 'reject',    label: 'Reject',     effect: { dignity: -2, blame: 4 } }
+    ]
+  },
+  {
+    id: 'human_hr_forms',
+    title: 'HR forms packet',
+    description: 'HR requires signatures collected from people who have already quit.',
+    category: 'human',
+    urgency: 2,
+    risk: { paperPath: 6, blame: 6 },
+    choices: [
+      { key: 'accept',   label: 'Accept',  effect: { paperPath: -4, toner: -4, blame: 1 } },
+      { key: 'reroute',  label: 'Reroute', effect: { blame: 3, dignity: -1 } },
+      { key: 'reject',   label: 'Reject',  effect: { dignity: -4, blame: 5 } }
     ]
   },
   {

@@ -144,7 +144,9 @@ export default class GameScene extends Phaser.Scene {
 
     this.logResolution(job, actionKey);
     this.logDeltaSince(before);
-    this.state.stats.jobsHandled += 1;
+    if (actionKey !== 'purgeQueue' && actionKey !== 'reboot') {
+      this.state.stats.jobsHandled += 1;
+    }
 
     if (this.evaluateEndings()) return;
 
