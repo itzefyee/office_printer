@@ -56,10 +56,10 @@ const TUTORIAL_STORAGE_KEY = 'op9k_tutorial_seen_v1';
 // Fallback effects for actions a job does not explicitly define.
 // Keeps every button useful without forcing every job to list every action.
 const DEFAULT_ACTION_EFFECTS = {
-  accept:     { blame: -1 },
+  accept:     { blame: -2 },
   reject:     { dignity: -3, blame: 3 },
-  fakeError:  { memory: -2, dignity: 1 },
-  reroute:    { blame: 2, memory: -1 },
+  fakeError:  { memory: -2, dignity: 1, blame: -1 },
+  reroute:    { blame: 1, memory: -1 },
   purgeQueue: {},   // handled specially below
   reboot:     {}    // handled specially below
 };
@@ -252,6 +252,7 @@ export default class GameScene extends Phaser.Scene {
   // =========================================================================
   onTick() {
     if (this.state.gameOver) return;
+    if (this.tutorial) return;
 
     applyEffects(this.state, { dayTime: TIME_PER_TICK });
     const prevPhase = this.state.phase;
