@@ -34,6 +34,7 @@ import { Hud } from '../ui/Hud.js';
 import { JobPanel } from '../ui/JobPanel.js';
 import { LogPanel } from '../ui/LogPanel.js';
 import { ActionButtons } from '../ui/ActionButtons.js';
+import { createButton } from '../ui/Button.js';
 
 const MANAGER_CHANCE = { earlyShift: 0, midShift: 0.12, lateShift: 0.22 };
 const OVERHEAT_THRESHOLD = 75;
@@ -49,6 +50,8 @@ const LOG_GOOD     = '#8ad07a';
 const LOG_PHASE    = '#9b8fca';
 const LOG_OFFICE   = '#6e7379';
 const LOG_ACTION   = '#c9d1d9';
+
+const TUTORIAL_STORAGE_KEY = 'op9k_tutorial_seen_v1';
 
 // Fallback effects for actions a job does not explicitly define.
 // Keeps every button useful without forcing every job to list every action.
@@ -82,6 +85,7 @@ export default class GameScene extends Phaser.Scene {
 
     this.buildLayout();
     this.refresh();
+    this.maybeShowTutorial();
 
     this.tickTimer = this.time.addEvent({
       delay: TICK_MS,
@@ -119,6 +123,7 @@ export default class GameScene extends Phaser.Scene {
 
     if (this.actionButtons?.isDisabled(actionKey)) return;
 
+    const before = this.snapshotMeters();
     this.playActionSfx(actionKey);
 
     const job = this.state.currentJob;
@@ -138,6 +143,7 @@ export default class GameScene extends Phaser.Scene {
     this.state.phase = phaseFor(this.state.dayTime);
 
     this.logResolution(job, actionKey);
+    this.logDeltaSince(before);
     this.state.stats.jobsHandled += 1;
 
     if (this.evaluateEndings()) return;
@@ -145,6 +151,28 @@ export default class GameScene extends Phaser.Scene {
     this.checkWarnings();
     this.advanceCurrentJob();
     this.refresh();
+  }
+
+  snapshotMeters() {
+    const snap = {};
+    METERS.forEach(m => { snap[m.key] = this.state[m.key] ?? 0; });
+    return snap;
+  }
+
+  logDeltaSince(before) {
+    if (!before) return;
+    const parts = [];
+    METERS.forEach(m => {
+      const key = m.key;
+      const prev = before[key] ?? 0;
+      const next = this.state[key] ?? 0;
+      const delta = Math.round(next) - Math.round(prev);
+      if (delta === 0) return;
+      const sign = delta > 0 ? '+' : '';
+      parts.push(`${key} ${sign}${delta}`);
+    });
+    if (parts.length === 0) return;
+    this.log(`Effect applied: ${parts.join(', ')}.`, LOG_SYSTEM);
   }
 
   playActionSfx(actionKey) {
@@ -340,5 +368,149 @@ export default class GameScene extends Phaser.Scene {
     this.jobPanel?.update(this.state.currentJob);
     this.logPanel?.update(this.state.log);
     this.actionButtons?.update(this.state, this.state.currentJob);
+  }
+
+  // =========================================================================
+  // Tutorial overlay
+  // =========================================================================
+  maybeShowTutorial() {
+    let seen = false;
+    try {
+      seen = localStorage.getItem(TUTORIAL_STORAGE_KEY) === '1';
+    } catch {
+      seen = false;
+    }
+    if (seen) return;
+
+    this.showTutorialOverlay();
+  }
+
+  showTutorialOverlay() {
+    if (this.tutorial) return;
+
+    const pages = [
+      {
+        title: 'WELCOME',
+        body:
+          'You are a sentient office printer.\n' +
+          'Survive the shift by responding to requests.\n\n' +
+          'Most choices keep you alive.\n' +
+          'Some keep you employed.'
+      },
+      {
+        title: 'MACHINE STATUS',
+        body:
+          'Meters are on the right.\n' +
+          'Heat and Blame rise as the day worsens.\n' +
+          'Paper Path and Memory fail quietly.\n\n' +
+          'If a meter hits its limit, the office concludes your story.'
+      },
+      {
+        title: 'QUEUE PRESSURE',
+        body:
+          'Requests pile up over time.\n' +
+          'A large queue causes ongoing damage.\n\n' +
+          'You can purge the queue.\n' +
+          'This is not considered polite.'
+      },
+      {
+        title: 'RESPONSE PANEL',
+        body:
+          'Buttons stay in fixed positions.\n\n' +
+          'Green actions are job-specific.\n' +
+          'Grey actions still work, but with generic outcomes.\n\n' +
+          'Reboot restores Memory and reduces Heat.\n' +
+          'It also wastes time. The office approves.'
+      }
+    ];
+
+    const overlay = this.add.rectangle(0, 0, GAME_WIDTH, 720, 0x000000, 0.55).setOrigin(0, 0);
+
+    const panelW = 860;
+    const panelH = 360;
+    const px = (GAME_WIDTH - panelW) / 2;
+    const py = 150;
+
+    const panel = this.add.rectangle(px, py, panelW, panelH, 0x151a1f).setOrigin(0, 0);
+    panel.setStrokeStyle(1, 0x2a3038);
+    const header = this.add.rectangle(px, py, panelW, 44, 0x1f2630).setOrigin(0, 0);
+    header.setStrokeStyle(1, 0x2a3038);
+
+    const titleText = this.add.text(px + 16, py + 12, '', {
+      fontFamily: 'monospace',
+      fontSize: '18px',
+      color: '#c9d1d9'
+    });
+    const bodyText = this.add.text(px + 16, py + 68, '', {
+      fontFamily: 'monospace',
+      fontSize: '16px',
+      color: '#d0d7de',
+      wordWrap: { width: panelW - 32 }
+    });
+
+    let pageIdx = 0;
+    const render = () => {
+      const page = pages[pageIdx];
+      titleText.setText(`// TUTORIAL  ${pageIdx + 1}/${pages.length}  ${page.title}`);
+      bodyText.setText(page.body);
+      backBtn.setState(pageIdx === 0 ? 'disabled' : 'normal');
+      nextBtn.text.setText(pageIdx === pages.length - 1 ? 'DONE' : 'NEXT');
+    };
+
+    const backBtn = createButton(this, {
+      x: px + 16,
+      y: py + panelH - 64,
+      width: 160,
+      height: 48,
+      label: 'BACK',
+      onClick: () => {
+        pageIdx = Math.max(0, pageIdx - 1);
+        render();
+      }
+    });
+
+    const nextBtn = createButton(this, {
+      x: px + panelW - 16 - 160,
+      y: py + panelH - 64,
+      width: 160,
+      height: 48,
+      label: 'NEXT',
+      onClick: () => {
+        if (pageIdx >= pages.length - 1) {
+          this.hideTutorialOverlay();
+          return;
+        }
+        pageIdx += 1;
+        render();
+      }
+    });
+    nextBtn.setState('primary');
+
+    const skipBtn = createButton(this, {
+      x: px + panelW / 2 - 90,
+      y: py + panelH - 64,
+      width: 180,
+      height: 48,
+      label: 'SKIP',
+      onClick: () => this.hideTutorialOverlay()
+    });
+    skipBtn.setState('muted');
+
+    const items = [overlay, panel, header, titleText, bodyText, backBtn.bg, backBtn.text, skipBtn.bg, skipBtn.text, nextBtn.bg, nextBtn.text];
+    items.forEach(o => o.setDepth(1000));
+
+    overlay.setInteractive({ useHandCursor: false });
+
+    this.tutorial = { items };
+    render();
+  }
+
+  hideTutorialOverlay() {
+    if (!this.tutorial) return;
+    try { localStorage.setItem(TUTORIAL_STORAGE_KEY, '1'); } catch {}
+    this.tutorial.items.forEach(o => {
+      try { o.destroy(); } catch {}
+    });
+    this.tutorial = null;
   }
 }
