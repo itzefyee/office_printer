@@ -29,7 +29,7 @@ import {
   managerEscalationLines,
   pickFrom
 } from '../game/data/flavor.js';
-import { playSfx } from '../game/audio/sfx.js';
+import { playSfx, startHum } from '../game/audio/sfx.js';
 import { Hud } from '../ui/Hud.js';
 import { JobPanel } from '../ui/JobPanel.js';
 import { LogPanel } from '../ui/LogPanel.js';
@@ -69,6 +69,10 @@ export default class GameScene extends Phaser.Scene {
   create() {
     this.state = createInitialState();
     this.state.currentJob = getFirstJob();
+
+    // Ensure the ambient hum is running whenever the main dashboard is active.
+    // If audio is still locked by the browser, this will no-op until unlocked.
+    startHum(this);
 
     const modifier = pickModifier();
     this.state.modifier = modifier;

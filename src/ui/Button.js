@@ -12,13 +12,15 @@ const STATE_COLORS = {
 
 export function createButton(scene, opts) {
   const { x, y, width, height, label, onClick } = opts;
+  const fontFamily = opts.fontFamily ?? 'monospace';
+  const fontSize = opts.fontSize ?? '18px';
 
   const bg = scene.add.rectangle(x, y, width, height, STATE_COLORS.normal.fill).setOrigin(0, 0);
   bg.setStrokeStyle(1, STATE_COLORS.normal.stroke);
 
   const text = scene.add.text(x + width / 2, y + height / 2, label, {
-    fontFamily: 'monospace',
-    fontSize: '18px',
+    fontFamily,
+    fontSize,
     color: STATE_COLORS.normal.text
   }).setOrigin(0.5);
 
