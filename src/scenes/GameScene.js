@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import {
   GAME_WIDTH,
+  GAME_HEIGHT,
   TICK_MS,
   TIME_PER_TICK,
   PHASE_LABELS,
@@ -426,7 +427,7 @@ export default class GameScene extends Phaser.Scene {
       }
     ];
 
-    const overlay = this.add.rectangle(0, 0, GAME_WIDTH, 720, 0x000000, 0.55).setOrigin(0, 0);
+    const overlay = this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.55).setOrigin(0, 0);
 
     const panelW = 860;
     const panelH = 360;
