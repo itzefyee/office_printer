@@ -43,7 +43,7 @@ export class ActionButtons {
       this.buttons[action.key] = button;
     });
 
-    this.scene.add.text(32, y + h + 12, 'Button positions are permanent. The printer has requested they remain permanent.', {
+    this.scene.add.text(32, y + h + 12, 'Green = job-specific. Grey = fallback. Positions are permanent by executive decision.', {
       fontFamily: 'monospace',
       fontSize: '12px',
       color: '#5a6068'

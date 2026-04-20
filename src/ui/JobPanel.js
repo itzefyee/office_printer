@@ -76,7 +76,7 @@ export class JobPanel {
     this.jobDescText.setText(job.description);
     this.jobRiskText.setText(formatRisk(job.risk));
     const keys = job.choices?.map(c => c.key).join(', ') ?? '';
-    this.jobChoicesText.setText(`Recommended responses: ${keys}`);
+    this.jobChoicesText.setText(`Job-defined actions: ${keys || 'none'}    (Other buttons use fallback outcomes.)`);
 
     this.urgencyBadge.setText(`URGENCY ${job.urgency}`);
     const urgencyColor = job.urgency >= 3 ? '#d45a4a'

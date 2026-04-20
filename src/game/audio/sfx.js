@@ -1,16 +1,41 @@
 import { AUDIO } from './audioKeys.js';
 
 const lastPlayedAt = new Map();
+let humSound = null;
 
 function nowMs(scene) {
   if (scene?.time?.now !== undefined) return scene.time.now;
   return Date.now();
 }
 
+function requestAudioUnlock(scene) {
+  const manager = scene?.sound;
+  if (!manager) return;
+
+  // Phaser typically unlocks on first input, but in practice it can remain locked
+  // until we explicitly ask and the browser resumes the AudioContext.
+  try {
+    if (typeof manager.unlock === 'function') manager.unlock();
+  } catch {}
+
+  try {
+    const ctx = manager.context;
+    if (ctx && typeof ctx.resume === 'function' && ctx.state === 'suspended') {
+      // Fire-and-forget; the click gesture should allow it.
+      ctx.resume();
+    }
+  } catch {}
+}
+
 function canPlay(scene) {
   const manager = scene?.sound;
   if (!manager) return false;
-  if (manager.locked) return false;
+  if (manager.mute) return false;
+
+  if (manager.locked) {
+    requestAudioUnlock(scene);
+    if (manager.locked) return false;
+  }
   return true;
 }
 
@@ -51,13 +76,21 @@ export function startHum(scene) {
   if (!canPlay(scene)) return null;
   if (!hasAudioKey(scene, def.key)) return null;
 
-  const existing = scene.sound.get(def.key);
-  if (existing && existing.isPlaying) return existing;
+  // The SoundManager is shared across scenes. Keep a single hum instance alive
+  // to avoid stacking loops during rapid restarts.
+  if (humSound && humSound.isPlaying) return humSound;
 
   try {
-    const s = scene.sound.add(def.key, { loop: true, volume: def.volume ?? 0.2 });
-    s.play();
-    return s;
+    // If a previous instance exists but isn't playing, destroy it before recreating.
+    if (humSound) {
+      try { humSound.stop(); } catch {}
+      try { humSound.destroy(); } catch {}
+      humSound = null;
+    }
+
+    humSound = scene.sound.add(def.key, { loop: true, volume: def.volume ?? 0.2 });
+    humSound.play();
+    return humSound;
   } catch {
     return null;
   }
@@ -67,8 +100,22 @@ export function stopHum(scene) {
   const def = AUDIO.hum;
   if (!def) return;
   try {
-    const s = scene?.sound?.get?.(def.key);
-    if (s) s.stop();
+    // Stop/destroy our tracked instance…
+    if (humSound) {
+      try { humSound.stop(); } catch {}
+      try { humSound.destroy(); } catch {}
+      humSound = null;
+    }
+
+    // …and also defensively stop any other hum instances that might have been created.
+    const manager = scene?.sound;
+    const list = manager?.sounds ?? [];
+    list.forEach(s => {
+      if (s?.key === def.key) {
+        try { s.stop(); } catch {}
+        try { s.destroy(); } catch {}
+      }
+    });
   } catch {
     // ignore
   }
