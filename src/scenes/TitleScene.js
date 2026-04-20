@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { GAME_WIDTH, GAME_HEIGHT } from '../game/config.js';
 import { createButton } from '../ui/Button.js';
 import { playSfx, startHum } from '../game/audio/sfx.js';
+import { COLORS, HEX, FONTS, drawGlassPanel } from '../ui/theme.js';
 
 export default class TitleScene extends Phaser.Scene {
   constructor() {
@@ -12,49 +13,98 @@ export default class TitleScene extends Phaser.Scene {
     const cx = GAME_WIDTH / 2;
     this.helpOverlay = null;
 
-    this.add.rectangle(0, 0, GAME_WIDTH, 56, 0x14181d).setOrigin(0, 0);
-    this.add.circle(24, 28, 5, 0x8ad07a);
-    this.add.text(40, 16, 'OFFICE PRINTER 9K // STANDBY', {
-      fontFamily: 'monospace',
-      fontSize: '18px',
-      color: '#e6e6e6'
-    });
+    this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, COLORS.surface).setOrigin(0, 0);
 
-    this.add.text(cx, 180, 'OFFICE PRINTER 9K', {
-      fontFamily: 'monospace',
-      fontSize: '56px',
-      color: '#e6e6e6'
-    }).setOrigin(0.5);
+    // Blueprint grid dots.
+    const grid = this.add.graphics();
+    grid.fillStyle(COLORS.outlineVar, 0.4);
+    for (let gx = 24; gx < GAME_WIDTH; gx += 24) {
+      for (let gy = 24; gy < GAME_HEIGHT; gy += 24) {
+        grid.fillRect(gx, gy, 1, 1);
+      }
+    }
 
-    this.add.text(cx, 250, 'A management simulation of quiet corporate despair.', {
-      fontFamily: 'monospace',
-      fontSize: '18px',
-      color: '#9aa0a6'
-    }).setOrigin(0.5);
-
-    this.add.text(cx, 320, 'The printer has been informed it will be evaluated.', {
-      fontFamily: 'monospace',
+    // Top strip to mirror the game.
+    this.add.rectangle(0, 0, GAME_WIDTH, 52, COLORS.surfaceDim, 0.92).setOrigin(0, 0);
+    this.add.rectangle(0, 52, GAME_WIDTH, 1, COLORS.outlineVar, 0.5).setOrigin(0, 0);
+    this.add.text(24, 18, 'OFFICE PRINTER 9K // STANDBY', {
+      fontFamily: FONTS.headline,
       fontSize: '14px',
-      color: '#6e7379'
-    }).setOrigin(0.5);
+      fontStyle: '700',
+      color: HEX.primary,
+      letterSpacing: 3
+    });
+    this.add.circle(14, 26, 3, COLORS.secondary);
 
+    // Title plate.
+    this.add.text(cx, 180, 'OFFICE', {
+      fontFamily: FONTS.headline,
+      fontSize: '72px',
+      fontStyle: '800',
+      color: HEX.onSurface,
+      letterSpacing: 4
+    }).setOrigin(0.5, 0.5);
+
+    this.add.text(cx, 250, 'PRINTER 9K', {
+      fontFamily: FONTS.headline,
+      fontSize: '96px',
+      fontStyle: '800',
+      color: HEX.primary,
+      letterSpacing: 6
+    }).setOrigin(0.5, 0.5);
+
+    // Framed tagline panel.
+    const panelW = 560;
+    const panelH = 110;
+    drawGlassPanel(this, cx - panelW / 2, 320, panelW, panelH);
+
+    this.add.text(cx, 348, 'DIAGNOSTIC_MODE', {
+      fontFamily: FONTS.headline,
+      fontSize: '10px',
+      fontStyle: '700',
+      color: HEX.primaryDim,
+      letterSpacing: 3
+    }).setOrigin(0.5, 0.5);
+
+    this.add.text(cx, 376, 'A management simulation of quiet corporate despair.', {
+      fontFamily: FONTS.body,
+      fontSize: '14px',
+      fontStyle: '400',
+      color: HEX.onSurface
+    }).setOrigin(0.5, 0.5);
+
+    this.add.text(cx, 404, 'The printer has been informed it will be evaluated.', {
+      fontFamily: FONTS.body,
+      fontSize: '11px',
+      fontStyle: 'italic',
+      color: HEX.onSurfaceVar
+    }).setOrigin(0.5, 0.5);
+
+    // Begin shift button.
     const btnW = 260;
-    const btnH = 56;
+    const btnH = 52;
+
     createButton(this, {
       x: cx - btnW / 2,
-      y: 360,
+      y: 450,
       width: btnW,
       height: 48,
-      label: 'HOW TO PLAY',
+      label: 'How to Play',
+      initial: 'muted',
+      glyph: '?',
+      fontSize: '11px',
       onClick: () => this.showHowToPlay()
-    }).setState('muted');
+    });
 
     createButton(this, {
       x: cx - btnW / 2,
-      y: 430,
+      y: 520,
       width: btnW,
       height: btnH,
-      label: 'BEGIN SHIFT',
+      label: 'Begin Shift',
+      initial: 'primary',
+      glyph: '\u25B6',
+      fontSize: '12px',
       onClick: () => {
         playSfx(this, 'uiConfirm', { cooldownMs: 0 });
         startHum(this);
@@ -62,11 +112,12 @@ export default class TitleScene extends Phaser.Scene {
       }
     });
 
-    this.add.text(cx, GAME_HEIGHT - 40, 'v0.1 prototype', {
-      fontFamily: 'monospace',
-      fontSize: '12px',
-      color: '#4a4f55'
-    }).setOrigin(0.5);
+    // Footer line with S/N feel.
+    this.add.text(cx, GAME_HEIGHT - 40, 'S/N: 0092-B-PR9K   //   v0.1 PROTOTYPE', {
+      fontFamily: FONTS.mono,
+      fontSize: '11px',
+      color: HEX.outline
+    }).setOrigin(0.5, 0.5);
   }
 
   showHowToPlay() {

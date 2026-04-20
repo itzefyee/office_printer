@@ -17,6 +17,17 @@ export default class BootScene extends Phaser.Scene {
   }
 
   create() {
-    this.scene.start('TitleScene');
+    const proceed = () => this.scene.start('TitleScene');
+
+    if (document.fonts && document.fonts.ready) {
+      // Nudge the browser to load each family before we hand off.
+      Promise.all([
+        document.fonts.load('700 14px "Space Grotesk"'),
+        document.fonts.load('400 14px "Inter"'),
+        document.fonts.load('500 14px "JetBrains Mono"')
+      ]).then(proceed).catch(proceed);
+    } else {
+      proceed();
+    }
   }
 }

@@ -4,14 +4,20 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Office Printer 9K</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Inter:wght@300;400;600;800&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
     <style>
       html, body {
         margin: 0;
         padding: 0;
         height: 100%;
-        background: #0b0d10;
-        color: #e6e6e6;
-        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        background: #0a0a0a;
+        color: #e5e2e1;
+        font-family: 'Inter', system-ui, sans-serif;
         overflow: hidden;
       }
       #game {
@@ -20,11 +26,28 @@
         justify-content: center;
         width: 100vw;
         height: 100vh;
+        background:
+          radial-gradient(circle at 50% 40%, #14120f 0%, #0a0a0a 70%),
+          #0a0a0a;
       }
+      /* Hidden preload probes so canvas text picks up the custom fonts
+         before Phaser paints the first frame. */
+      .font-probe {
+        position: absolute;
+        left: -9999px;
+        top: -9999px;
+        visibility: hidden;
+      }
+      .font-probe.grotesk { font-family: 'Space Grotesk', sans-serif; }
+      .font-probe.inter   { font-family: 'Inter', sans-serif; }
+      .font-probe.mono    { font-family: 'JetBrains Mono', monospace; }
     </style>
   </head>
   <body>
     <div id="game"></div>
+    <span class="font-probe grotesk">.</span>
+    <span class="font-probe inter">.</span>
+    <span class="font-probe mono">.</span>
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>
