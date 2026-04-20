@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import {
   GAME_WIDTH,
+  GAME_HEIGHT,
   TICK_MS,
   TIME_PER_TICK,
   PHASE_LABELS,
@@ -85,7 +86,6 @@ export default class GameScene extends Phaser.Scene {
 
     this.buildLayout();
     this.refresh();
-    this.maybeShowTutorial();
 
     this.tickTimer = this.time.addEvent({
       delay: TICK_MS,
@@ -93,6 +93,8 @@ export default class GameScene extends Phaser.Scene {
       callback: () => this.onTick(),
       callbackScope: this
     });
+
+    this.maybeShowTutorial();
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.teardown, this);
     this.events.once(Phaser.Scenes.Events.DESTROY, this.teardown, this);
@@ -387,6 +389,7 @@ export default class GameScene extends Phaser.Scene {
 
   showTutorialOverlay() {
     if (this.tutorial) return;
+    if (this.tickTimer) this.tickTimer.paused = true;
 
     const pages = [
       {
@@ -424,7 +427,7 @@ export default class GameScene extends Phaser.Scene {
       }
     ];
 
-    const overlay = this.add.rectangle(0, 0, GAME_WIDTH, 720, 0x000000, 0.55).setOrigin(0, 0);
+    const overlay = this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.55).setOrigin(0, 0);
 
     const panelW = 860;
     const panelH = 360;
@@ -512,5 +515,6 @@ export default class GameScene extends Phaser.Scene {
       try { o.destroy(); } catch {}
     });
     this.tutorial = null;
+    if (this.tickTimer) this.tickTimer.paused = false;
   }
 }
