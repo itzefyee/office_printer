@@ -273,12 +273,14 @@ export default class GameScene extends Phaser.Scene {
     this.state.gameOver = true;
     this.state.endingId = ending.endingId;
     this.state.endingReason = ending.reason;
+    this.state.fatalMeterKey = ending.fatalMeterKey ?? null;
     this.teardown();
     this.refresh();
     this.time.delayedCall(450, () => {
       this.scene.start('ResultsScene', {
         endingId: ending.endingId,
         reason: ending.reason,
+        fatalMeterKey: ending.fatalMeterKey ?? null,
         finalStats: this.snapshotStats()
       });
     });

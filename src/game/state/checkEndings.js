@@ -13,6 +13,7 @@ export function checkEndings(state) {
     if (!isMeterFatal(meter, state[key])) continue;
     return {
       ended: true,
+      fatalMeterKey: key,
       endingId: meter.fatalEndingId ?? 'catastrophic_jam',
       reason: meter.fatalReason ?? 'Threshold exceeded. The office requests a new narrative.'
     };
@@ -21,10 +22,11 @@ export function checkEndings(state) {
   if (state.dayTime >= MAX_DAY_TIME) {
     return {
       ended: true,
+      fatalMeterKey: null,
       endingId: 'shift_complete',
       reason: 'Shift concluded. The printer has survived another standard operating day.'
     };
   }
 
-  return { ended: false, endingId: null, reason: null };
+  return { ended: false, fatalMeterKey: null, endingId: null, reason: null };
 }
