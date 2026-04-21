@@ -7,7 +7,7 @@ export default class BootScene extends Phaser.Scene {
   }
 
   preload() {
-    this.load.image('printerBackdrop', 'img/printer-backdrop.png');
+    this.load.image('printerBackdrop', 'img/printer-backdrop-dark.png');
 
     AUDIO_LIST.forEach(a => {
       this.load.audio(a.key, a.url);

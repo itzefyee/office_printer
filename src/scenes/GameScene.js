@@ -197,11 +197,11 @@ export default class GameScene extends Phaser.Scene {
     }
 
     // Layer 2: centered "contain" image, slightly shrunk so the full art reads.
-    const containScale = Math.min(GAME_WIDTH / imgW, GAME_HEIGHT / imgH) * 0.70;
+    const containScale = Math.min(GAME_WIDTH / imgW, GAME_HEIGHT / imgH) * 0.85;
     this.add.image(GAME_WIDTH / 2, GAME_HEIGHT / 2, 'printerBackdrop')
-      .setOrigin(0.5, 0.5)
+      .setOrigin(0.51, 0.5)
       .setScale(containScale)
-      .setAlpha(0.40);
+      .setAlpha(0.8);
 
     // Scanline ghost: thin horizontal lines at low alpha.
     const scan = this.add.graphics();
