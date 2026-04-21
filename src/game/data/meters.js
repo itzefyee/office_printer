@@ -1,5 +1,12 @@
 export const METERS = [
-  { key: 'toner',     label: 'Toner',      dangerLow: 15 },
+  {
+    key: 'toner',
+    label: 'Toner',
+    dangerLow: 15,
+    fatalLow: 0,
+    fatalEndingId: 'toner_depleted',
+    fatalReason: 'Toner exhausted. The machine has nothing left to give. Literally.'
+  },
   {
     key: 'heat',
     label: 'Heat',

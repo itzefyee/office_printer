@@ -28,27 +28,27 @@ export const PHASE_LABELS = {
 // Per-phase tick pressure. Each field is applied on every tick.
 // enqueueChance is the probability of pushing a new job onto the queue.
 export const PHASE_PRESSURE = {
-  earlyShift: { heat: 0, blame: 0, enqueueChance: 0.20 },
-  midShift:   { heat: 1, blame: 1, enqueueChance: 0.38 },
-  lateShift:  { heat: 2, blame: 2, enqueueChance: 0.55 }
+  earlyShift: { heat: 0, blame: 0, enqueueChance: 0.22 },
+  midShift:   { heat: 2, blame: 2, enqueueChance: 0.48 },
+  lateShift:  { heat: 3, blame: 4, enqueueChance: 0.68 }
 };
 
 // Per-phase probability of a random incident firing each tick.
 export const INCIDENT_CHANCE = {
-  earlyShift: 0.08,
-  midShift:   0.16,
-  lateShift:  0.24
+  earlyShift: 0.12,
+  midShift:   0.24,
+  lateShift:  0.36
 };
 
 // With TIME_PER_TICK=1 and TICK_MS=5000, MAX_DAY_TIME=120 is ~10 minutes of ticks.
 // (Special actions/incidents can still advance time a bit.)
 export const MAX_DAY_TIME = 120;
 
-export const QUEUE_WARN = 6;
-export const QUEUE_OVERFLOW = 10;
+export const QUEUE_WARN = 5;
+export const QUEUE_OVERFLOW = 8;
 
 // Hits applied once per tick when the queue is above QUEUE_OVERFLOW.
-export const QUEUE_OVERFLOW_EFFECT = { paperPath: -1, blame: 1, heat: 1 };
+export const QUEUE_OVERFLOW_EFFECT = { paperPath: -2, blame: 3, heat: 2 };
 
 export function phaseFor(dayTime) {
   if (dayTime >= PHASE_THRESHOLDS.lateShift) return 'lateShift';

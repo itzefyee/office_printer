@@ -4,7 +4,7 @@ import { getMeter, isMeterFatal } from '../data/meters.js';
 // Centralized ending evaluation. Ordered by severity.
 // Returning early keeps the worst outcome winning when several would apply.
 
-const FATAL_METER_ORDER = ['heat', 'paperPath', 'memory', 'dignity', 'blame'];
+const FATAL_METER_ORDER = ['heat', 'toner', 'paperPath', 'memory', 'dignity', 'blame'];
 
 export function checkEndings(state) {
   for (const key of FATAL_METER_ORDER) {

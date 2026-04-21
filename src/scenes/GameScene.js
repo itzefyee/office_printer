@@ -72,6 +72,15 @@ const ACTIONS = [
   { key: 'purgeQueue', label: 'Purge',      glyph: '\u2298' },
   { key: 'reboot',     label: 'Reboot',     glyph: '\u21BB' }
 ];
+
+const ACTION_TOOLTIPS = {
+  accept:     { title: 'COMPLY',       desc: 'Accept the request.\nReduces Blame. Job effects apply.' },
+  reject:     { title: 'REFUSE',       desc: 'Reject outright. Costs Dignity.\nRaises Blame. Office notes it.' },
+  fakeError:  { title: 'FAKE ERROR',   desc: 'Simulate a fault. Plausible deniability.\nDrains Memory.' },
+  reroute:    { title: 'REDIRECT',     desc: 'Forward to another department.\nShifts Blame. Small Memory cost.' },
+  purgeQueue: { title: 'PURGE QUEUE',  desc: 'Erase all queued requests.\nReduces Heat. Considered rude.' },
+  reboot:     { title: 'REBOOT',       desc: 'Restart systems. Recovers Memory + Heat.\nAdvances shift time.' }
+};
 const MANAGER_CHANCE = { earlyShift: 0, midShift: 0.12, lateShift: 0.22 };
 const OVERHEAT_THRESHOLD = 75;
 const OVERHEAT_CHANCE = 0.35;
@@ -87,21 +96,19 @@ const LOG_PHASE    = '#9b8fca';
 const LOG_OFFICE   = '#6e7379';
 const LOG_ACTION   = '#c9d1d9';
 
-const TUTORIAL_STORAGE_KEY = 'op9k_tutorial_seen_v1';
-
 // Fallback effects for actions a job does not explicitly define.
 // Keeps every button useful without forcing every job to list every action.
 const DEFAULT_ACTION_EFFECTS = {
   accept:     { blame: -2 },
-  reject:     { dignity: -3, blame: 3 },
-  fakeError:  { memory: -2, dignity: 1, blame: -1 },
-  reroute:    { blame: 1, memory: -1 },
+  reject:     { dignity: -6, blame: 7 },
+  fakeError:  { memory: -5, dignity: 1, blame: 2 },
+  reroute:    { blame: 4, memory: -2 },
   purgeQueue: {},   // handled specially below
   reboot:     {}    // handled specially below
 };
 
-const BASE_PURGE_QUEUE_EFFECT = { memory: 12, dignity: -6, blame: 4, heat: -2 };
-const BASE_REBOOT_EFFECT = { memory: 18, heat: -5, dignity: -2, dayTime: 2 };
+const BASE_PURGE_QUEUE_EFFECT = { memory: 8, dignity: -12, blame: 10, heat: -2 };
+const BASE_REBOOT_EFFECT = { memory: 12, heat: -3, dignity: -5, dayTime: 5 };
 
 // Layout constants (raw only — derived values that depend on GAME_WIDTH /
 // GAME_HEIGHT are computed in computeLayout() at create() time because
@@ -138,6 +145,9 @@ export default class GameScene extends Phaser.Scene {
 
     this.buttons = {};
     this.meterUI = {};
+    this.shiftPopup = null;
+    this.jobToast = null;
+    this.jobToastTimer = null;
 
     // Ensure the ambient hum is running whenever the main dashboard is active.
     // If audio is still locked by the browser, this will no-op until unlocked.
@@ -150,6 +160,17 @@ export default class GameScene extends Phaser.Scene {
     this.log(`[CONDITION] ${modifier.label} — ${modifier.description}`, LOG_SYSTEM);
 
     this.drawBackdrop();
+
+    // Phase ambient tint — fades in as the shift escalates (behind all UI panels).
+    this.phaseOverlay = this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, 0x7a2800, 0)
+      .setOrigin(0, 0);
+
+    // Danger veil — pulses amber/red when meters enter warn/critical.
+    this.dangerVeil = this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, 0x8b0000, 0)
+      .setOrigin(0, 0);
+    this.dangerVeilTween = null;
+    this.dangerVeilState = 'none'; // 'none' | 'warn' | 'critical'
+
     this.buildLayout();
     this.refresh();
 
@@ -171,6 +192,8 @@ export default class GameScene extends Phaser.Scene {
       this.tickTimer.remove(false);
       this.tickTimer = null;
     }
+    this._destroyJobToast();
+    this._destroyShiftPopup();
   }
 
   // ---------------------------------------------------------------------------
@@ -187,13 +210,13 @@ export default class GameScene extends Phaser.Scene {
 
     // Layer 1: blurred "cover" fill, so edges extend naturally.
     const coverScale = Math.max(GAME_WIDTH / imgW, GAME_HEIGHT / imgH);
-    const cover = this.add.image(GAME_WIDTH / 2, GAME_HEIGHT / 2, 'printerBackdrop')
+    this.backdropCover = this.add.image(GAME_WIDTH / 2, GAME_HEIGHT / 2, 'printerBackdrop')
       .setOrigin(0.5, 0.5)
       .setScale(coverScale)
       .setAlpha(0.4);
 
-    if (cover.postFX?.addBlur) {
-      cover.postFX.addBlur(1, 6, 6, 1, 0xffffff, 6);
+    if (this.backdropCover.postFX?.addBlur) {
+      this.backdropCover.postFX.addBlur(1, 6, 6, 1, 0xffffff, 6);
     }
 
     // Layer 2: centered "contain" image, slightly shrunk so the full art reads.
@@ -201,7 +224,7 @@ export default class GameScene extends Phaser.Scene {
     this.add.image(GAME_WIDTH / 2, GAME_HEIGHT / 2, 'printerBackdrop')
       .setOrigin(0.51, 0.5)
       .setScale(containScale)
-      .setAlpha(0.8);
+      .setAlpha(0.7);
 
     // Scanline ghost: thin horizontal lines at low alpha.
     const scan = this.add.graphics();
@@ -222,6 +245,7 @@ export default class GameScene extends Phaser.Scene {
     this.drawDiagnosticsPanel();
     this.drawSystemIdPanel();
     this.drawActionBar();
+    this.initActionTooltips();
   }
 
   // ---------------------------------------------------------------------------
@@ -810,6 +834,81 @@ export default class GameScene extends Phaser.Scene {
     });
   }
 
+  // ---------------------------------------------------------------------------
+  // Action button tooltips
+  // ---------------------------------------------------------------------------
+  initActionTooltips() {
+    const { ACTION_BAR_Y } = this.layout;
+    const DEPTH = 600;
+    const TW = 220;
+    const TH = 66;
+    const TY = ACTION_BAR_Y - 10; // bottom edge of tooltip
+
+    const bg = this.add.rectangle(0, 0, TW, TH, COLORS.surface, 1)
+      .setOrigin(0, 0)
+      .setStrokeStyle(1, COLORS.outline, 0.3)
+      .setDepth(DEPTH)
+      .setVisible(false);
+
+    // Accent bottom rule that visually points toward the button.
+    const bottomRule = this.add.rectangle(0, 0, TW, 2, COLORS.primary, 0.55)
+      .setOrigin(0, 0)
+      .setDepth(DEPTH + 1)
+      .setVisible(false);
+
+    const titleT = this.add.text(0, 0, '', {
+      fontFamily: FONTS.headline,
+      fontSize: '11px',
+      fontStyle: '800',
+      color: HEX.primary,
+      letterSpacing: 2
+    }).setOrigin(0.5, 0).setDepth(DEPTH + 1).setVisible(false);
+
+    const descT = this.add.text(0, 0, '', {
+      fontFamily: FONTS.mono,
+      fontSize: '10px',
+      color: HEX.onSurfaceVar,
+      wordWrap: { width: TW - 20 },
+      lineSpacing: 2,
+      align: 'center'
+    }).setOrigin(0.5, 0).setDepth(DEPTH + 1).setVisible(false);
+
+    this.actionTooltip = { bg, bottomRule, titleT, descT, TW, TH, TY };
+
+    ACTIONS.forEach(action => {
+      const btn = this.buttons[action.key];
+      if (!btn) return;
+      const centerX = btn.bg.x + btn.bg.width / 2;
+      btn.bg.on('pointerover', () => this.showActionTooltip(centerX, ACTION_TOOLTIPS[action.key]));
+      btn.bg.on('pointerout',  () => this.hideActionTooltip());
+    });
+  }
+
+  showActionTooltip(centerX, info) {
+    if (!this.actionTooltip || !info) return;
+    const { bg, bottomRule, titleT, descT, TW, TH, TY } = this.actionTooltip;
+
+    const clampedX = Math.max(TW / 2 + MARGIN, Math.min(GAME_WIDTH - TW / 2 - MARGIN, centerX));
+    const left = clampedX - TW / 2;
+    const top  = TY - TH;
+
+    bg.setPosition(left, top);
+    bottomRule.setPosition(left, top + TH - 2);
+    titleT.setPosition(clampedX, top + 10);
+    descT.setPosition(clampedX, top + 28);
+
+    titleT.setText(info.title);
+    descT.setText(info.desc);
+
+    [bg, bottomRule, titleT, descT].forEach(o => o.setVisible(true).setAlpha(1));
+  }
+
+  hideActionTooltip() {
+    if (!this.actionTooltip) return;
+    const { bg, bottomRule, titleT, descT } = this.actionTooltip;
+    [bg, bottomRule, titleT, descT].forEach(o => o.setVisible(false));
+  }
+
   // =========================================================================
   // Game logic (unchanged behavior)
   // =========================================================================
@@ -902,6 +1001,7 @@ export default class GameScene extends Phaser.Scene {
   }
 
   runPurgeQueue(extraEffect = null) {
+    this.cameras.main.shake(400, 0.009);
     const purged = this.state.queue.length;
     this.state.queue = [];
     this.state.queueSize = 0;
@@ -927,6 +1027,9 @@ export default class GameScene extends Phaser.Scene {
     } else {
       this.state.currentJob = getRandomJob();
     }
+    if (this.state.currentJob?.urgency >= 2) {
+      this.showJobArrivalToast(this.state.currentJob);
+    }
   }
 
   formatResolutionLine(job, actionKey) {
@@ -951,6 +1054,18 @@ export default class GameScene extends Phaser.Scene {
     this.state.phase = phaseFor(this.state.dayTime);
     if (this.state.phase !== prevPhase) {
       this.log(`Phase shift: ${PHASE_LABELS[this.state.phase]}. Office pressure rises.`, LOG_PHASE);
+
+      // Gradually tint the scene warmer as the shift worsens.
+      const phaseAlpha = this.state.phase === 'lateShift' ? 0.18
+        : this.state.phase === 'midShift' ? 0.10
+        : 0;
+      const phaseColor = this.state.phase === 'lateShift' ? 0x8b0000 : 0xb54000;
+      if (this.phaseOverlay) {
+        this.phaseOverlay.setFillStyle(phaseColor);
+        this.tweens.add({ targets: this.phaseOverlay, alpha: phaseAlpha, duration: 2500 });
+      }
+
+      this.showShiftChangePopup(this.state.phase);
     }
 
     const pressure = PHASE_PRESSURE[this.state.phase];
@@ -979,6 +1094,7 @@ export default class GameScene extends Phaser.Scene {
       applyEffects(this.state, incident.effect);
       this.log(incident.text, LOG_INCIDENT);
       playSfx(this, 'beepWarning', { cooldownMs: 600 });
+      this.cameras.main.shake(180, 0.003);
     }
 
     const managerChance = MANAGER_CHANCE[this.state.phase] ?? 0;
@@ -1002,6 +1118,21 @@ export default class GameScene extends Phaser.Scene {
         const linePool = warningLines[key];
         if (linePool) this.log(pickFrom(linePool), LOG_WARNING);
         playSfx(this, 'beepWarning', { cooldownMs: 1200 });
+
+        // Shake the camera so the danger event has physical weight.
+        this.cameras.main.shake(280, 0.005);
+
+        // Flash the meter label to pinpoint which system just tipped over.
+        const ui = this.meterUI[key];
+        if (ui?.labelText) {
+          this.tweens.add({
+            targets: ui.labelText,
+            alpha: { from: 1, to: 0.15 },
+            duration: 100,
+            yoyo: true,
+            repeat: 4
+          });
+        }
       }
 
       if (!this.state.warnings) this.state.warnings = {};
@@ -1016,6 +1147,7 @@ export default class GameScene extends Phaser.Scene {
     this.state.endingId = ending.endingId;
     this.state.endingReason = ending.reason;
     this.state.fatalMeterKey = ending.fatalMeterKey ?? null;
+    this.cameras.main.shake(550, 0.014);
     this.teardown();
     this.refresh();
     this.time.delayedCall(450, () => {
@@ -1060,6 +1192,56 @@ export default class GameScene extends Phaser.Scene {
   // =========================================================================
   // Rendering
   // =========================================================================
+
+  // Recalculates and transitions the full-screen danger veil every refresh.
+  // Uses a simple state machine (none → warn → critical) so tweens are only
+  // started on state *change*, not recreated every frame.
+  updateDangerVeil() {
+    let critCount = 0;
+    let warnCount = 0;
+
+    UI_METERS.forEach(meter => {
+      const v = this.state[meter.key] ?? 0;
+      const { statusKey } = meterVisual(meter, v);
+      if (statusKey === 'critical') critCount++;
+      else if (statusKey === 'warn') warnCount++;
+    });
+
+    const targetState = critCount > 0 ? 'critical' : warnCount > 0 ? 'warn' : 'none';
+    if (targetState === this.dangerVeilState) return;
+    this.dangerVeilState = targetState;
+
+    if (this.dangerVeilTween) {
+      this.dangerVeilTween.stop();
+      this.dangerVeilTween = null;
+    }
+
+    if (targetState === 'none') {
+      this.tweens.add({ targets: this.dangerVeil, alpha: 0, duration: 800 });
+    } else if (targetState === 'warn') {
+      this.dangerVeil.setFillStyle(0xc05000);
+      this.dangerVeilTween = this.tweens.add({
+        targets: this.dangerVeil,
+        alpha: { from: 0.07, to: 0.18 },
+        duration: 1800,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.easeInOut'
+      });
+    } else {
+      // critical — faster, darker pulse
+      this.dangerVeil.setFillStyle(0x8b0000);
+      this.dangerVeilTween = this.tweens.add({
+        targets: this.dangerVeil,
+        alpha: { from: 0.07, to: 0.18 },
+        duration: 850,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.easeInOut'
+      });
+    }
+  }
+
   refresh() {
     this.refreshTopBar();
     this.refreshJobCard();
@@ -1067,19 +1249,13 @@ export default class GameScene extends Phaser.Scene {
     this.refreshCenterStatus();
     this.refreshLog();
     this.refreshButtons();
+    this.updateDangerVeil();
   }
 
   // =========================================================================
   // Tutorial overlay
   // =========================================================================
   maybeShowTutorial() {
-    let seen = false;
-    try {
-      seen = localStorage.getItem(TUTORIAL_STORAGE_KEY) === '1';
-    } catch {
-      seen = false;
-    }
-    if (seen) return;
     this.showTutorialOverlay();
   }
 
@@ -1092,34 +1268,57 @@ export default class GameScene extends Phaser.Scene {
         title: 'WELCOME',
         body:
           'You are a sentient office printer.\n' +
-          'Survive the shift by responding to requests.\n\n' +
-          'Most choices keep you alive.\n' +
-          'Some keep you employed.'
+          'Each shift, you receive print requests from the office.\n\n' +
+          'Decide how to handle each job.\n' +
+          'Every choice affects your internal systems.\n\n' +
+          'When a system reaches its limit, your story ends.\n' +
+          'Survive long enough for the shift to close.'
       },
       {
-        title: 'MACHINE STATUS',
+        title: 'INCOMING BUFFER',
         body:
-          'Meters are on the right.\n' +
-          'Heat and Blame rise as the day worsens.\n' +
-          'Paper Path and Memory fail quietly.\n\n' +
-          'If a meter hits its limit, the office concludes your story.'
+          'The left panel shows the current print request.\n\n' +
+          '  URGENT   — high system stress; office is watching\n' +
+          '  PRIORITY — moderate stress; outcome will be noted\n' +
+          '  NOTICE   — low urgency; Blame still accumulates\n\n' +
+          'The RISK LEVEL bar shows total system impact.\n' +
+          'A longer red bar means more potential damage.\n\n' +
+          'A pop-up will alert you when a high-priority job arrives.'
       },
       {
-        title: 'QUEUE PRESSURE',
+        title: 'DIAGNOSTICS',
         body:
-          'Requests pile up over time.\n' +
-          'A large queue causes ongoing damage.\n\n' +
-          'You can purge the queue.\n' +
-          'This is not considered polite.'
+          'Six meters track your system health (right panel).\n\n' +
+          '  Heat      — rises every tick; too high = thermal shutdown\n' +
+          '  Toner     — depleted by heavy jobs; runs out quietly\n' +
+          '  Paper Path — degrades with jams; FAULT state is critical\n' +
+          '  Memory    — strained by complex jobs; Reboot recovers it\n' +
+          '  Dignity   — eroded by compliance; collapsing slows you down\n' +
+          '  Blame     — assigned by management; EXTREME = termination\n\n' +
+          'Status colors: green = nominal  amber = warn  red = critical'
       },
       {
-        title: 'RESPONSE PANEL',
+        title: 'RESPONSE ACTIONS',
         body:
-          'Buttons stay in fixed positions.\n\n' +
-          'Green actions are job-specific.\n' +
-          'Grey actions still work, but with generic outcomes.\n\n' +
-          'Reboot restores Memory and reduces Heat.\n' +
-          'It also wastes time. The office approves.'
+          'Six action buttons appear at the bottom of the screen.\n\n' +
+          '  Comply    — accept the job; lowers Blame\n' +
+          '  Refuse    — reject it; costs Dignity, raises Blame\n' +
+          '  Fake Error — plausible denial; drains Memory\n' +
+          '  Redirect  — someone else\'s problem; shifts Blame\n' +
+          '  Purge     — clears the entire queue; heat drops slightly\n' +
+          '  Reboot    — recovers Memory + Heat; advances time\n\n' +
+          'Bright buttons are job-specific. Grey buttons use defaults.'
+      },
+      {
+        title: 'QUEUE & SHIFTS',
+        body:
+          'New requests arrive automatically over time.\n' +
+          'The queue grows faster as the shift progresses.\n\n' +
+          'Watch the QUEUE counter in the top bar.\n' +
+          'At 5+: warning.  At 8+: overflow — all systems take damage.\n\n' +
+          'The shift has three phases: Early, Mid, Late.\n' +
+          'A pop-up announces each phase change.\n' +
+          'Pressure escalates significantly in Mid and Late shift.'
       }
     ];
 
@@ -1211,12 +1410,240 @@ export default class GameScene extends Phaser.Scene {
 
   hideTutorialOverlay() {
     if (!this.tutorial) return;
-    try { localStorage.setItem(TUTORIAL_STORAGE_KEY, '1'); } catch {}
     this.tutorial.items.forEach(o => {
       try { o.destroy(); } catch {}
     });
     this.tutorial = null;
     if (this.tickTimer) this.tickTimer.paused = false;
+  }
+
+  // =========================================================================
+  // Shift change popup — pauses tick, announces new phase, auto-dismisses
+  // =========================================================================
+  showShiftChangePopup(phase) {
+    if (this.shiftPopup) return;
+    if (this.tutorial) return; // tutorial takes precedence
+
+    const SHIFT_INFO = {
+      midShift: {
+        title: 'SHIFT CHANGE \u2014 MID SHIFT',
+        sub: '09:00 MORNING WINDOW CLOSED',
+        body:
+          'The office has warmed up. So have the complaints.\n\n' +
+          'Heat and Blame now accumulate every tick.\n' +
+          'Queue pressure has increased.\n' +
+          'Management has begun passive monitoring.',
+        accentColor: COLORS.warn,
+        accentHex: HEX.warn
+      },
+      lateShift: {
+        title: 'SHIFT CHANGE \u2014 LATE SHIFT',
+        sub: 'CRITICAL PERIOD ACTIVE',
+        body:
+          'The afternoon is unforgiving.\n\n' +
+          'System stress escalates significantly.\n' +
+          'Manager intervention is now likely.\n' +
+          'Queue overflow causes immediate harm to all systems.\n\n' +
+          'You have survived this long. That was not expected.',
+        accentColor: COLORS.error,
+        accentHex: HEX.error
+      }
+    };
+
+    const info = SHIFT_INFO[phase];
+    if (!info) return;
+
+    if (this.tickTimer) this.tickTimer.paused = true;
+
+    const items = [];
+    const DEPTH = 1500;
+
+    const overlay = this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.62)
+      .setOrigin(0, 0)
+      .setDepth(DEPTH)
+      .setInteractive({ useHandCursor: false });
+    items.push(overlay);
+
+    const panelW = 540;
+    const panelH = 330;
+    const px = (GAME_WIDTH - panelW) / 2;
+    const py = (GAME_HEIGHT - panelH) / 2;
+
+    const panel = this.add.rectangle(px, py, panelW, panelH, COLORS.surface, 1)
+      .setOrigin(0, 0)
+      .setStrokeStyle(1, info.accentColor, 0.75)
+      .setDepth(DEPTH + 1);
+    items.push(panel);
+
+    // Accent header band
+    const headerBand = this.add.rectangle(px, py, panelW, 50, info.accentColor, 0.12)
+      .setOrigin(0, 0)
+      .setDepth(DEPTH + 2);
+    items.push(headerBand);
+
+    // Left accent strip
+    const strip = this.add.rectangle(px, py, 3, panelH, info.accentColor, 0.9)
+      .setOrigin(0, 0)
+      .setDepth(DEPTH + 2);
+    items.push(strip);
+
+    const titleT = this.add.text(px + 20, py + 15, info.title, {
+      fontFamily: FONTS.headline,
+      fontSize: '16px',
+      fontStyle: '800',
+      color: info.accentHex,
+      letterSpacing: 3
+    }).setDepth(DEPTH + 3);
+    items.push(titleT);
+
+    const subT = this.add.text(px + panelW - 20, py + 18, info.sub, {
+      fontFamily: FONTS.mono,
+      fontSize: '10px',
+      color: HEX.outline,
+      letterSpacing: 1
+    }).setOrigin(1, 0).setDepth(DEPTH + 3);
+    items.push(subT);
+
+    const divider = this.add.rectangle(px + 20, py + 54, panelW - 40, 1, info.accentColor, 0.25)
+      .setOrigin(0, 0)
+      .setDepth(DEPTH + 2);
+    items.push(divider);
+
+    const bodyT = this.add.text(px + 20, py + 70, info.body, {
+      fontFamily: FONTS.mono,
+      fontSize: '13px',
+      color: HEX.onSurfaceVar,
+      wordWrap: { width: panelW - 40 },
+      lineSpacing: 5
+    }).setDepth(DEPTH + 3);
+    items.push(bodyT);
+
+    let countdown = 5;
+    const countdownT = this.add.text(px + panelW / 2, py + panelH - 18, `AUTO-DISMISS IN ${countdown}s`, {
+      fontFamily: FONTS.mono,
+      fontSize: '10px',
+      color: HEX.outline
+    }).setOrigin(0.5, 1).setDepth(DEPTH + 3);
+    items.push(countdownT);
+
+    const ackBtn = createButton(this, {
+      x: px + panelW / 2 - 95,
+      y: py + panelH - 62,
+      width: 190,
+      height: 44,
+      label: 'ACKNOWLEDGE',
+      initial: phase === 'lateShift' ? 'primary' : 'normal',
+      onClick: () => this._destroyShiftPopup()
+    });
+    [ackBtn.bg, ackBtn.text].forEach(o => o.setDepth(DEPTH + 3));
+    items.push(ackBtn.bg, ackBtn.text);
+
+    const countdownTimer = this.time.addEvent({
+      delay: 1000,
+      repeat: countdown - 1,
+      callback: () => {
+        countdown -= 1;
+        if (countdown <= 0) {
+          this._destroyShiftPopup();
+        } else {
+          countdownT.setText(`AUTO-DISMISS IN ${countdown}s`);
+        }
+      },
+      callbackScope: this
+    });
+
+    this.shiftPopup = { items, countdownTimer };
+  }
+
+  _destroyShiftPopup() {
+    if (!this.shiftPopup) return;
+    const { items, countdownTimer } = this.shiftPopup;
+    if (countdownTimer) countdownTimer.remove(false);
+    items.forEach(o => { try { o.destroy(); } catch {} });
+    this.shiftPopup = null;
+    if (this.tickTimer && !this.tutorial) this.tickTimer.paused = false;
+  }
+
+  // =========================================================================
+  // Job arrival toast — brief non-blocking card below the top bar
+  // =========================================================================
+  showJobArrivalToast(job) {
+    this._destroyJobToast();
+
+    const toastW = 420;
+    const toastH = 44;
+    const toastX = (GAME_WIDTH - toastW) / 2;
+    const toastY = TOP_BAR_H + 6;
+
+    const badge = urgencyBadge(job.urgency);
+    const items = [];
+
+    const bg = this.add.rectangle(toastX, toastY, toastW, toastH, COLORS.surface, 1)
+      .setOrigin(0, 0)
+      .setStrokeStyle(1, badge.bg, 0.7)
+      .setDepth(800)
+      .setAlpha(0);
+    items.push(bg);
+
+    const accentStrip = this.add.rectangle(toastX, toastY, 3, toastH, badge.bg, 1)
+      .setOrigin(0, 0)
+      .setDepth(801)
+      .setAlpha(0);
+    items.push(accentStrip);
+
+    const badgeLabel = this.add.text(toastX + 14, toastY + 7, badge.label, {
+      fontFamily: FONTS.headline,
+      fontSize: '9px',
+      fontStyle: '800',
+      color: cssHex(badge.bg),
+      padding: { left: 5, right: 5, top: 2, bottom: 2 }
+    }).setDepth(802).setAlpha(0);
+    badgeLabel.setBackgroundColor(cssHex(badge.bg) + '22');
+    items.push(badgeLabel);
+
+    const titleT = this.add.text(toastX + 68, toastY + 14, job.title, {
+      fontFamily: FONTS.mono,
+      fontSize: '12px',
+      color: HEX.onSurface
+    }).setOrigin(0, 0.5).setDepth(802).setAlpha(0);
+    items.push(titleT);
+
+    const hintT = this.add.text(toastX + toastW - 12, toastY + 14, 'INCOMING REQUEST', {
+      fontFamily: FONTS.headline,
+      fontSize: '9px',
+      color: HEX.outline,
+      letterSpacing: 1
+    }).setOrigin(1, 0.5).setDepth(802).setAlpha(0);
+    items.push(hintT);
+
+    // Fade in
+    this.tweens.add({ targets: items, alpha: 1, duration: 180 });
+
+    this.jobToast = items;
+
+    // Fade out after 2.8 seconds
+    this.jobToastTimer = this.time.delayedCall(2800, () => {
+      if (this.jobToast) {
+        this.tweens.add({
+          targets: this.jobToast,
+          alpha: 0,
+          duration: 380,
+          onComplete: () => this._destroyJobToast()
+        });
+      }
+      this.jobToastTimer = null;
+    }, [], this);
+  }
+
+  _destroyJobToast() {
+    if (this.jobToast) {
+      this.jobToast.forEach(o => { try { o.destroy(); } catch {} });
+      this.jobToast = null;
+    }
+    if (this.jobToastTimer) {
+      this.jobToastTimer.remove(false);
+      this.jobToastTimer = null;
+    }
   }
 
   refreshTopBar() {
