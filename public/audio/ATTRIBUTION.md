@@ -1,6 +1,9 @@
-## Office Printer 9K — Audio attribution (Milestone A)
+## Office Printer 9K — Audio attribution
 
-This folder is expected to contain the game’s sound effects.
+This folder contains the game’s sound effects.
+
+If you ship this game (jam submission, itch release, etc.), **fill this file in** with the
+exact sources and licenses for every audio file included in the build.
 
 ### Recommended free sources (pick a set and record it here)
 - **Freesound (CC0/CC-BY varies per file)**: check the license on each download.
@@ -27,7 +30,7 @@ Drop audio files here using the stable names below. Prefer `.ogg` (or use `.mp3`
 - `ending_win.ogg`
 - `ending_fail.ogg`
 
-### Attribution log (fill in once you add files)
+### Attribution log (required for submission)
 | File | Source | License | Notes |
 |---|---|---|---|
 | hum_loop.ogg |  |  |  |
@@ -40,4 +43,22 @@ Drop audio files here using the stable names below. Prefer `.ogg` (or use `.mp3`
 | jam_alarm.ogg |  |  |  |
 | ending_win.ogg |  |  |  |
 | ending_fail.ogg |  |  |  |
+
+### Itch.io credits block (paste-ready)
+
+Replace the placeholders below after you fill the attribution table.
+
+```
+Audio / SFX:
+- hum_loop.ogg — <author or pack> — <link> — <license>
+- ui_click.ogg — <author or pack> — <link> — <license>
+- ui_confirm.ogg — <author or pack> — <link> — <license>
+- ui_error.ogg — <author or pack> — <link> — <license>
+- paper_feed.ogg — <author or pack> — <link> — <license>
+- beep_warning.ogg — <author or pack> — <link> — <license>
+- reboot.ogg — <author or pack> — <link> — <license>
+- jam_alarm.ogg — <author or pack> — <link> — <license>
+- ending_win.ogg — <author or pack> — <link> — <license>
+- ending_fail.ogg — <author or pack> — <link> — <license>
+```
 

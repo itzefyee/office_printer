@@ -100,6 +100,9 @@ const DEFAULT_ACTION_EFFECTS = {
   reboot:     {}    // handled specially below
 };
 
+const BASE_PURGE_QUEUE_EFFECT = { memory: 12, dignity: -6, blame: 4, heat: -2 };
+const BASE_REBOOT_EFFECT = { memory: 18, heat: -5, dignity: -2, dayTime: 2 };
+
 // Layout constants (raw only — derived values that depend on GAME_WIDTH /
 // GAME_HEIGHT are computed in computeLayout() at create() time because
 // config.js re-imports GameScene, and referencing GAME_WIDTH at module
@@ -823,9 +826,9 @@ export default class GameScene extends Phaser.Scene {
     const effect = choice?.effect ?? DEFAULT_ACTION_EFFECTS[actionKey] ?? {};
 
     if (actionKey === 'purgeQueue') {
-      this.runPurgeQueue();
+      this.runPurgeQueue(effect);
     } else if (actionKey === 'reboot') {
-      this.runReboot();
+      this.runReboot(effect);
     } else {
       applyEffects(this.state, effect);
     }
@@ -898,11 +901,11 @@ export default class GameScene extends Phaser.Scene {
     }
   }
 
-  runPurgeQueue() {
+  runPurgeQueue(extraEffect = null) {
     const purged = this.state.queue.length;
     this.state.queue = [];
     this.state.queueSize = 0;
-    applyEffects(this.state, { memory: 12, dignity: -6, blame: 4, heat: -2 });
+    applyEffects(this.state, mergeEffects(BASE_PURGE_QUEUE_EFFECT, extraEffect));
     this.state.stats.queuesPurged += 1;
     if (purged > 0) {
       this.log(`Queue purged. ${purged} request${purged === 1 ? '' : 's'} erased without record.`, LOG_ACTION);
@@ -911,8 +914,8 @@ export default class GameScene extends Phaser.Scene {
     }
   }
 
-  runReboot() {
-    applyEffects(this.state, { memory: 18, heat: -5, dignity: -2, dayTime: 2 });
+  runReboot(extraEffect = null) {
+    applyEffects(this.state, mergeEffects(BASE_REBOOT_EFFECT, extraEffect));
     this.state.stats.reboots += 1;
     this.log('Rebooted. Consciousness resumed after an unexplained interval.', LOG_ACTION);
   }
@@ -1425,4 +1428,14 @@ function formatJobId(rawId) {
 
 function cssHex(num) {
   return '#' + num.toString(16).padStart(6, '0');
+}
+
+function mergeEffects(base, extra) {
+  if (!extra) return base;
+  const out = { ...base };
+  for (const [key, value] of Object.entries(extra)) {
+    if (value === 0 || value === null || value === undefined) continue;
+    out[key] = (out[key] ?? 0) + value;
+  }
+  return out;
 }
