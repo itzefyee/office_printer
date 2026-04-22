@@ -81,7 +81,7 @@ export const jobs = [
     risk: { paperPath: 18, heat: 5 },
     choices: [
       { key: 'accept',     label: 'Accept',     effect: { paperPath: -18, heat: 6, toner: -7 } },
-      { key: 'purgeQueue', label: 'Purge queue', effect: { memory: 8, dignity: -12, blame: 10, heat: -2 } },
+      { key: 'purgeQueue', label: 'Purge queue', effect: {} },
       { key: 'fakeError',  label: 'Fake error', effect: { memory: -5, dignity: 2, blame: 3 } },
       { key: 'reject',     label: 'Reject',     effect: { dignity: -9, blame: 12 } }
     ]
@@ -193,7 +193,7 @@ export const jobs = [
       { key: 'accept',     label: 'Accept',     effect: { memory: -12, heat: 7, paperPath: -4 } },
       { key: 'reject',     label: 'Reject',     effect: { dignity: -9, blame: 12 } },
       { key: 'fakeError',  label: 'Fake error', effect: { memory: -6, dignity: 2, blame: 3 } },
-      { key: 'purgeQueue', label: 'Purge queue', effect: { memory: 8, dignity: -12, blame: 10 } }
+      { key: 'purgeQueue', label: 'Purge queue', effect: {} }
     ]
   },
   {
@@ -289,7 +289,7 @@ export const jobs = [
     risk: { memory: 10, blame: 4 },
     choices: [
       { key: 'accept',     label: 'Accept',     effect: { memory: -10, heat: 2, blame: 2 } },
-      { key: 'purgeQueue', label: 'Purge queue', effect: { memory: 8, dignity: -12, blame: 10, heat: -2 } },
+      { key: 'purgeQueue', label: 'Purge queue', effect: {} },
       { key: 'reboot',     label: 'Reboot',     effect: { memory: 14, heat: 2, dignity: -2, dayTime: 3 } },
       { key: 'reject',     label: 'Reject',     effect: { dignity: -6, blame: 9 } }
     ]
@@ -304,7 +304,7 @@ export const jobs = [
     urgency: 1,
     risk: { toner: -15, dignity: -1 },
     choices: [
-      { key: 'accept', label: 'Accept', effect: { toner: 22, heat: 1, dignity: 1 } },
+      { key: 'accept', label: 'Accept', effect: { toner: 22, heat: 3, dayTime: 2 } },
       { key: 'reject', label: 'Reject', effect: { dignity: -5, blame: 4 } }
     ]
   },
@@ -429,7 +429,7 @@ export const jobs = [
       { key: 'accept',     label: 'Accept',     effect: { heat: 7, toner: -10, blame: 3 } },
       { key: 'reroute',    label: 'Reroute',    effect: { blame: 8, dignity: -3 } },
       { key: 'fakeError',  label: 'Fake error', effect: { memory: -5, dignity: 2, blame: 5 } },
-      { key: 'purgeQueue', label: 'Purge queue', effect: { memory: 8, dignity: -12, blame: 10, heat: -2 } },
+      { key: 'purgeQueue', label: 'Purge queue', effect: {} },
       { key: 'reject',     label: 'Reject',     effect: { dignity: -10, blame: 16 } }
     ]
   },
@@ -483,7 +483,7 @@ export const jobs = [
       { key: 'accept',     label: 'Accept',      effect: { memory: -10, heat: 3, paperPath: -5 } },
       { key: 'reject',     label: 'Reject',      effect: { dignity: -9, blame: 12 } },
       { key: 'fakeError',  label: 'Fake error',  effect: { memory: -6, dignity: 2, blame: 5 } },
-      { key: 'purgeQueue', label: 'Purge queue', effect: { memory: 8, dignity: -12, blame: 10 } }
+      { key: 'purgeQueue', label: 'Purge queue', effect: {} }
     ]
   }
 ];

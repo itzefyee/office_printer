@@ -85,8 +85,6 @@ const MANAGER_CHANCE = { earlyShift: 0, midShift: 0.12, lateShift: 0.22 };
 const OVERHEAT_THRESHOLD = 75;
 const OVERHEAT_CHANCE = 0.35;
 const MAX_LOG_LINES = 8;
-const MAX_QUEUE_DISPLAY = 100;
-
 const LOG_DEFAULT  = '#b7bec6';
 const LOG_SYSTEM   = '#5a9fd4';
 const LOG_INCIDENT = '#d4a34a';
@@ -148,6 +146,8 @@ export default class GameScene extends Phaser.Scene {
     this.shiftPopup = null;
     this.jobToast = null;
     this.jobToastTimer = null;
+    this.consequencePopup = null;
+    this.pendingJobToast = null;
 
     // Ensure the ambient hum is running whenever the main dashboard is active.
     // If audio is still locked by the browser, this will no-op until unlocked.
@@ -192,8 +192,10 @@ export default class GameScene extends Phaser.Scene {
       this.tickTimer.remove(false);
       this.tickTimer = null;
     }
+    this.pendingJobToast = null;
     this._destroyJobToast();
     this._destroyShiftPopup();
+    this._destroyConsequencePopup();
   }
 
   // ---------------------------------------------------------------------------
@@ -303,10 +305,13 @@ export default class GameScene extends Phaser.Scene {
       color: HEX.outline
     }).setOrigin(1, 0);
 
-    this.topLamps = [];
+    // Shift phase indicators: 1/2/3 dots lit for early/mid/late.
+    this.shiftDots = [];
     for (let i = 0; i < lampCount; i++) {
-      const lamp = this.add.circle(lampsLeft + i * lampGap, 26, 3, COLORS.outlineVar);
-      this.topLamps.push(lamp);
+      const x = lampsLeft + i * lampGap;
+      const y = 26;
+      const dot = this.add.circle(x, y, 4, COLORS.outlineVar);
+      this.shiftDots.push(dot);
     }
   }
 
@@ -945,6 +950,7 @@ export default class GameScene extends Phaser.Scene {
     if (this.evaluateEndings()) return;
 
     this.checkWarnings();
+    this.showConsequencePopup(actionKey, job, before);
     this.advanceCurrentJob();
     this.refresh();
   }
@@ -1015,7 +1021,12 @@ export default class GameScene extends Phaser.Scene {
   }
 
   runReboot(extraEffect = null) {
-    applyEffects(this.state, mergeEffects(BASE_REBOOT_EFFECT, extraEffect));
+    const merged = mergeEffects(BASE_REBOOT_EFFECT, extraEffect);
+    // Cap memory recovery per reboot so job-specific bonuses can not trivialise
+    // the resource. Base value (12) is always available; stacked bonus is capped
+    // so total gain never exceeds 18.
+    if ((merged.memory ?? 0) > 18) merged.memory = 18;
+    applyEffects(this.state, merged);
     this.state.stats.reboots += 1;
     this.log('Rebooted. Consciousness resumed after an unexplained interval.', LOG_ACTION);
   }
@@ -1027,8 +1038,9 @@ export default class GameScene extends Phaser.Scene {
     } else {
       this.state.currentJob = getRandomJob();
     }
+    // Store for deferred display — toast shows only after consequence popup dismisses.
     if (this.state.currentJob?.urgency >= 2) {
-      this.showJobArrivalToast(this.state.currentJob);
+      this.pendingJobToast = this.state.currentJob;
     }
   }
 
@@ -1069,7 +1081,7 @@ export default class GameScene extends Phaser.Scene {
     }
 
     const pressure = PHASE_PRESSURE[this.state.phase];
-    applyEffects(this.state, { heat: pressure.heat, blame: pressure.blame });
+    applyEffects(this.state, { heat: pressure.heat, blame: pressure.blame, toner: pressure.toner ?? 0 });
 
     if (Math.random() < pressure.enqueueChance) {
       const newJob = getRandomJob();
@@ -1092,9 +1104,11 @@ export default class GameScene extends Phaser.Scene {
     if (Math.random() < incidentChance) {
       const incident = incidents[Math.floor(Math.random() * incidents.length)];
       applyEffects(this.state, incident.effect);
-      this.log(incident.text, LOG_INCIDENT);
-      playSfx(this, 'beepWarning', { cooldownMs: 600 });
-      this.cameras.main.shake(180, 0.003);
+      this.log(incident.text, incident.positive ? LOG_GOOD : LOG_INCIDENT);
+      if (!incident.positive) {
+        playSfx(this, 'beepWarning', { cooldownMs: 600 });
+        this.cameras.main.shake(180, 0.003);
+      }
     }
 
     const managerChance = MANAGER_CHANCE[this.state.phase] ?? 0;
@@ -1147,10 +1161,17 @@ export default class GameScene extends Phaser.Scene {
     this.state.endingId = ending.endingId;
     this.state.endingReason = ending.reason;
     this.state.fatalMeterKey = ending.fatalMeterKey ?? null;
+    // Shock + hold: keep the player on the dashboard for a beat before results.
     this.cameras.main.shake(550, 0.014);
+
     this.teardown();
     this.refresh();
-    this.time.delayedCall(450, () => {
+
+    // Let the shake finish, pause briefly, then fade out before results.
+    this.time.delayedCall(1200, () => {
+      this.cameras.main.fade(600, 0, 0, 0);
+    });
+    this.time.delayedCall(1800, () => {
       this.scene.start('ResultsScene', {
         endingId: ending.endingId,
         reason: ending.reason,
@@ -1293,7 +1314,7 @@ export default class GameScene extends Phaser.Scene {
           '  Toner     — depleted by heavy jobs; runs out quietly\n' +
           '  Paper Path — degrades with jams; FAULT state is critical\n' +
           '  Memory    — strained by complex jobs; Reboot recovers it\n' +
-          '  Dignity   — eroded by compliance; collapsing slows you down\n' +
+          '  Dignity   — lost to abuse, capitulation, and office incidents\n' +
           '  Blame     — assigned by management; EXTREME = termination\n\n' +
           'Status colors: green = nominal  amber = warn  red = critical'
       },
@@ -1418,7 +1439,7 @@ export default class GameScene extends Phaser.Scene {
   }
 
   // =========================================================================
-  // Shift change popup — pauses tick, announces new phase, auto-dismisses
+  // Shift change popup — pauses tick, announces new phase, waits for acknowledge
   // =========================================================================
   showShiftChangePopup(phase) {
     if (this.shiftPopup) return;
@@ -1518,14 +1539,6 @@ export default class GameScene extends Phaser.Scene {
     }).setDepth(DEPTH + 3);
     items.push(bodyT);
 
-    let countdown = 5;
-    const countdownT = this.add.text(px + panelW / 2, py + panelH - 18, `AUTO-DISMISS IN ${countdown}s`, {
-      fontFamily: FONTS.mono,
-      fontSize: '10px',
-      color: HEX.outline
-    }).setOrigin(0.5, 1).setDepth(DEPTH + 3);
-    items.push(countdownT);
-
     const ackBtn = createButton(this, {
       x: px + panelW / 2 - 95,
       y: py + panelH - 62,
@@ -1538,21 +1551,7 @@ export default class GameScene extends Phaser.Scene {
     [ackBtn.bg, ackBtn.text].forEach(o => o.setDepth(DEPTH + 3));
     items.push(ackBtn.bg, ackBtn.text);
 
-    const countdownTimer = this.time.addEvent({
-      delay: 1000,
-      repeat: countdown - 1,
-      callback: () => {
-        countdown -= 1;
-        if (countdown <= 0) {
-          this._destroyShiftPopup();
-        } else {
-          countdownT.setText(`AUTO-DISMISS IN ${countdown}s`);
-        }
-      },
-      callbackScope: this
-    });
-
-    this.shiftPopup = { items, countdownTimer };
+    this.shiftPopup = { items, countdownTimer: null };
   }
 
   _destroyShiftPopup() {
@@ -1570,10 +1569,10 @@ export default class GameScene extends Phaser.Scene {
   showJobArrivalToast(job) {
     this._destroyJobToast();
 
-    const toastW = 420;
-    const toastH = 44;
+    const toastW = 460;
+    const toastH = 50;
     const toastX = (GAME_WIDTH - toastW) / 2;
-    const toastY = TOP_BAR_H + 6;
+    const toastY = TOP_BAR_H + 10;
 
     const badge = urgencyBadge(job.urgency);
     const items = [];
@@ -1601,14 +1600,16 @@ export default class GameScene extends Phaser.Scene {
     badgeLabel.setBackgroundColor(cssHex(badge.bg) + '22');
     items.push(badgeLabel);
 
-    const titleT = this.add.text(toastX + 68, toastY + 14, job.title, {
+    const maxChars = 30;
+    const titleStr = job.title.length > maxChars ? job.title.slice(0, maxChars - 1) + '\u2026' : job.title;
+    const titleT = this.add.text(toastX + 80, toastY + toastH / 2, titleStr, {
       fontFamily: FONTS.mono,
-      fontSize: '12px',
+      fontSize: '13px',
       color: HEX.onSurface
     }).setOrigin(0, 0.5).setDepth(802).setAlpha(0);
     items.push(titleT);
 
-    const hintT = this.add.text(toastX + toastW - 12, toastY + 14, 'INCOMING REQUEST', {
+    const hintT = this.add.text(toastX + toastW - 14, toastY + toastH / 2, 'INCOMING REQUEST', {
       fontFamily: FONTS.headline,
       fontSize: '9px',
       color: HEX.outline,
@@ -1622,7 +1623,7 @@ export default class GameScene extends Phaser.Scene {
     this.jobToast = items;
 
     // Fade out after 2.8 seconds
-    this.jobToastTimer = this.time.delayedCall(2800, () => {
+    this.jobToastTimer = this.time.delayedCall(3600, () => {
       if (this.jobToast) {
         this.tweens.add({
           targets: this.jobToast,
@@ -1646,12 +1647,173 @@ export default class GameScene extends Phaser.Scene {
     }
   }
 
+  // =========================================================================
+  // Action consequence popup — shows meter deltas after every player choice
+  // =========================================================================
+  showConsequencePopup(actionKey, job, before) {
+    // Cancel any toast queued from the previous popup before replacing it.
+    this.pendingJobToast = null;
+    this._destroyConsequencePopup();
+
+    const SHORT = {
+      toner: 'TONER', heat: 'HEAT', paperPath: 'PATH',
+      memory: 'MEM', dignity: 'DIG', blame: 'BLAME'
+    };
+
+    const deltas = [];
+    METERS.forEach(m => {
+      const prev = before[m.key] ?? 0;
+      const next = this.state[m.key] ?? 0;
+      const delta = Math.round(next) - Math.round(prev);
+      if (delta === 0) return;
+      const isHarmful = (m.dangerHigh !== undefined && delta > 0)
+                     || (m.dangerLow  !== undefined && delta < 0);
+      deltas.push({ short: SHORT[m.key] ?? m.key.toUpperCase(), delta, isHarmful });
+    });
+
+    const DEPTH = 700;
+    const panelW = 460;
+    const panelH = 106;
+    const px = (GAME_WIDTH - panelW) / 2;
+    const py = TOP_BAR_H + 50;
+
+    const SHORT_DESC = {
+      accept:     'Compliance noted. Blame reduced.',
+      reject:     'Request refused. Office has questions.',
+      fakeError:  'Error fabricated. Memory consumed.',
+      reroute:    'Redirected. Responsibility transferred.',
+      purgeQueue: 'Queue erased. Heat reduced.',
+      reboot:     'Systems restarted. Time lost.'
+    };
+    const desc = SHORT_DESC[actionKey] ?? '';
+
+    const accentColor =
+      actionKey === 'accept'                                  ? COLORS.secondary
+      : actionKey === 'reject' || actionKey === 'purgeQueue'  ? COLORS.error
+      : COLORS.primary;
+    const accentHex =
+      actionKey === 'accept'                                  ? HEX.secondary
+      : actionKey === 'reject' || actionKey === 'purgeQueue'  ? HEX.error
+      : HEX.primary;
+
+    const actionLabel = ACTIONS.find(a => a.key === actionKey)?.label?.toUpperCase() ?? actionKey.toUpperCase();
+
+    const items = [];
+    const add = (obj) => { items.push(obj); return obj; };
+
+    // Panel background
+    add(this.add.rectangle(px, py, panelW, panelH, COLORS.surface, 1)
+      .setOrigin(0, 0)
+      .setStrokeStyle(1, accentColor, 0.45)
+      .setDepth(DEPTH)
+      .setAlpha(0));
+
+    // Left accent strip
+    add(this.add.rectangle(px, py, 3, panelH, accentColor, 1)
+      .setOrigin(0, 0)
+      .setDepth(DEPTH + 1)
+      .setAlpha(0));
+
+    // Header band
+    add(this.add.rectangle(px, py, panelW, 36, accentColor, 0.08)
+      .setOrigin(0, 0)
+      .setDepth(DEPTH + 1)
+      .setAlpha(0));
+
+    // Action label
+    add(this.add.text(px + 14, py + 11, actionLabel, {
+      fontFamily: FONTS.headline,
+      fontSize: '13px',
+      fontStyle: '800',
+      color: accentHex,
+      letterSpacing: 3
+    }).setDepth(DEPTH + 2).setAlpha(0));
+
+    // Job title
+    if (job?.title) {
+      const t = job.title.length > 30 ? job.title.slice(0, 29) + '\u2026' : job.title;
+      add(this.add.text(px + panelW - 12, py + 13, t, {
+        fontFamily: FONTS.mono,
+        fontSize: '10px',
+        color: HEX.outline
+      }).setOrigin(1, 0).setDepth(DEPTH + 2).setAlpha(0));
+    }
+
+    // Divider
+    add(this.add.rectangle(px + 12, py + 36, panelW - 24, 1, accentColor, 0.2)
+      .setOrigin(0, 0)
+      .setDepth(DEPTH + 1)
+      .setAlpha(0));
+
+    // One-line description (≤8 words)
+    add(this.add.text(px + 14, py + 44, desc, {
+      fontFamily: FONTS.mono,
+      fontStyle: 'italic',
+      fontSize: '10px',
+      color: HEX.onSurfaceVar
+    }).setDepth(DEPTH + 2).setAlpha(0));
+
+    // Meter delta chips
+    const chipsY = py + 66;
+    if (deltas.length > 0) {
+      let chipX = px + 14;
+      deltas.forEach(({ short, delta, isHarmful }) => {
+        const chipColor = isHarmful ? HEX.error : HEX.secondary;
+        const sign = delta > 0 ? '+' : '';
+        const chip = add(this.add.text(chipX, chipsY, `${short} ${sign}${delta}`, {
+          fontFamily: FONTS.mono,
+          fontSize: '11px',
+          color: chipColor
+        }).setDepth(DEPTH + 2).setAlpha(0));
+        chipX += chip.width + 16;
+      });
+    } else {
+      add(this.add.text(px + 14, chipsY, 'No system impact.', {
+        fontFamily: FONTS.mono,
+        fontSize: '11px',
+        color: HEX.outline
+      }).setDepth(DEPTH + 2).setAlpha(0));
+    }
+
+    this.tweens.add({ targets: items, alpha: 1, duration: 150 });
+
+    const dismissTimer = this.time.delayedCall(2800, () => {
+      if (this.consequencePopup) {
+        this.tweens.add({
+          targets: this.consequencePopup.items,
+          alpha: 0,
+          duration: 320,
+          onComplete: () => this._destroyConsequencePopup()
+        });
+        this.consequencePopup.dismissTimer = null;
+      }
+    }, [], this);
+
+    this.consequencePopup = { items, dismissTimer };
+  }
+
+  _destroyConsequencePopup() {
+    if (!this.consequencePopup) return;
+    const { items, dismissTimer } = this.consequencePopup;
+    if (dismissTimer) dismissTimer.remove(false);
+    items.forEach(o => { try { o.destroy(); } catch {} });
+    this.consequencePopup = null;
+    this._showPendingJobToast();
+  }
+
+  _showPendingJobToast() {
+    if (!this.pendingJobToast) return;
+    const job = this.pendingJobToast;
+    this.pendingJobToast = null;
+    this.showJobArrivalToast(job);
+  }
+
   refreshTopBar() {
     const { sysTime, queue, prog } = this.topChips;
     sysTime.valueText.setText(formatSysTime(this.state.dayTime));
 
     const q = this.state.queue.length;
-    queue.valueText.setText(`${q}/${MAX_QUEUE_DISPLAY}`);
+    queue.valueText.setText(`${q}/${QUEUE_OVERFLOW}`);
     queue.valueText.setColor(
       q >= QUEUE_OVERFLOW ? HEX.error
       : q >= QUEUE_WARN    ? HEX.warn
@@ -1659,7 +1821,7 @@ export default class GameScene extends Phaser.Scene {
     );
 
     // Progress reads roughly as fraction of the shift elapsed.
-    const pct = Math.min(99, Math.round((this.state.dayTime / 80) * 100));
+    const pct = Math.min(99, Math.round((this.state.dayTime / MAX_DAY_TIME) * 100));
     prog.valueText.setText(`${pct}%`);
 
     // Alert banner visibility: any critical meter OR queue overflow.
@@ -1669,12 +1831,17 @@ export default class GameScene extends Phaser.Scene {
     }) || this.state.queue.length >= QUEUE_OVERFLOW;
     this.alertBanner.setVisible(critical);
 
-    // Lamp colors follow phase for a subtle dashboard vibe.
+    // Shift dots: early/mid/late = 1/2/3 dots lit.
+    const phaseIdx = this.state.phase === 'lateShift' ? 2
+      : this.state.phase === 'midShift' ? 1
+      : 0;
     const phaseLampColor = this.state.phase === 'lateShift' ? COLORS.error
       : this.state.phase === 'midShift' ? COLORS.warn
       : COLORS.secondary;
-    this.topLamps.forEach((l, i) => {
-      l.setFillStyle(i === 0 ? phaseLampColor : COLORS.outlineVar);
+    this.shiftDots.forEach((dot, i) => {
+      const lit = i <= phaseIdx;
+      dot.setFillStyle(lit ? phaseLampColor : COLORS.outlineVar, 1);
+      dot.setAlpha(lit ? 1 : 0.35);
     });
 
     this.shiftTag.setText(PHASE_LABELS[this.state.phase].toUpperCase());
@@ -1787,7 +1954,10 @@ export default class GameScene extends Phaser.Scene {
     if (this.state.gameOver) return 'disabled';
 
     if (action.key === 'purgeQueue') {
-      return this.state.queue.length === 0 ? 'disabled' : 'normal';
+      // Allow if the current job explicitly offers purgeQueue even on empty queue,
+      // so that job-specific flavour choices are never blocked.
+      const jobOffersIt = definedKeys.has('purgeQueue');
+      return this.state.queue.length === 0 && !jobOffersIt ? 'disabled' : 'normal';
     }
     if (action.key === 'reboot') {
       return this.state.memory >= 95 ? 'muted' : 'normal';
@@ -1827,12 +1997,6 @@ function statusColorFor(meter, statusKey) {
   }
   if (statusKey === 'warn') return HEX.warn;
   return HEX.onSurfaceVar;
-}
-
-function meterInDanger(meter, value) {
-  if (meter.dangerHigh !== undefined && value >= meter.dangerHigh) return true;
-  if (meter.dangerLow !== undefined && value <= meter.dangerLow)   return true;
-  return false;
 }
 
 function riskMagnitude(risk) {

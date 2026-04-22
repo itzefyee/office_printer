@@ -28,9 +28,9 @@ export const PHASE_LABELS = {
 // Per-phase tick pressure. Each field is applied on every tick.
 // enqueueChance is the probability of pushing a new job onto the queue.
 export const PHASE_PRESSURE = {
-  earlyShift: { heat: 0, blame: 0, enqueueChance: 0.22 },
-  midShift:   { heat: 2, blame: 2, enqueueChance: 0.48 },
-  lateShift:  { heat: 3, blame: 4, enqueueChance: 0.68 }
+  earlyShift: { heat: 0, blame: 0, toner:  0, enqueueChance: 0.22 },
+  midShift:   { heat: 2, blame: 2, toner: -1, enqueueChance: 0.48 },
+  lateShift:  { heat: 3, blame: 4, toner: -2, enqueueChance: 0.68 }
 };
 
 // Per-phase probability of a random incident firing each tick.

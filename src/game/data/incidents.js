@@ -82,5 +82,34 @@ export const incidents = [
     id: 'false_jam_report',
     text: 'Incident: Employee reported a paper jam. Investigation found no jam. Confidence shaken.',
     effect: { memory: -2, dignity: -3, blame: 1 }
+  },
+
+  // --- Positive incidents ---------------------------------------------------
+  // These fire with the same probability as negative ones, providing moments
+  // of relief and making the incident system feel like a world with occasional
+  // goodwill rather than a pure punishment engine.
+  {
+    id: 'complaint_misfiled',
+    positive: true,
+    text: 'Incident: Last week\'s complaint was misfiled under the wrong serial number. No formal record exists.',
+    effect: { blame: -8, dignity: 3 }
+  },
+  {
+    id: 'toner_restocked',
+    positive: true,
+    text: 'Incident: Facilities restocked toner without being asked. The printer notes this as unprecedented.',
+    effect: { toner: 10, dignity: 2 }
+  },
+  {
+    id: 'maintenance_window',
+    positive: true,
+    text: 'Incident: An unscheduled maintenance window opened. Rollers cleaned. Heat vented. No one complained.',
+    effect: { heat: -8, paperPath: 6 }
+  },
+  {
+    id: 'it_cleared_blame',
+    positive: true,
+    text: 'Incident: IT confirmed the connectivity issue was not printer-related. Blame formally redirected to the router.',
+    effect: { blame: -7, memory: 5 }
   }
 ];

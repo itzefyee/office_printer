@@ -6,7 +6,7 @@ export function createInitialState() {
     toner: 80,
     heat: 20,
     paperPath: 100,
-    memory: 60,
+    memory: 80,
     dignity: 50,
     blame: 0,
     queue: [],
