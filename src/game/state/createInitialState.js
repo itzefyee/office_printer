@@ -28,6 +28,7 @@ export function createInitialState() {
       queuesPurged: 0,
       reboots: 0
     },
+    firedEventIds: {},
     gameOver: false,
     endingId: null,
     endingReason: null

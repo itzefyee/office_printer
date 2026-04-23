@@ -18,6 +18,7 @@ import { applyEffects } from '../game/state/applyEffects.js';
 import { checkEndings } from '../game/state/checkEndings.js';
 import { getFirstJob, getRandomJob } from '../game/data/jobs.js';
 import { incidents } from '../game/data/incidents.js';
+import { timedEvents } from '../game/data/timedEvents.js';
 import { pickModifier } from '../game/data/modifiers.js';
 import { METERS, isMeterInDanger } from '../game/data/meters.js';
 import {
@@ -108,10 +109,8 @@ const DEFAULT_ACTION_EFFECTS = {
 const BASE_PURGE_QUEUE_EFFECT = { memory: 8, dignity: -12, blame: 10, heat: -2 };
 const BASE_REBOOT_EFFECT = { memory: 12, heat: -3, dignity: -5, dayTime: 5 };
 
-// Layout constants (raw only — derived values that depend on GAME_WIDTH /
-// GAME_HEIGHT are computed in computeLayout() at create() time because
-// config.js re-imports GameScene, and referencing GAME_WIDTH at module
-// scope here triggers a temporal-dead-zone crash during that cycle).
+// Raw layout constants. Derived values that combine these with GAME_WIDTH /
+// GAME_HEIGHT are computed inside computeLayout() at create() time.
 const TOP_BAR_H = 52;
 const MARGIN = 16;
 const LEFT_W = 312;
@@ -147,7 +146,9 @@ export default class GameScene extends Phaser.Scene {
     this.jobToast = null;
     this.jobToastTimer = null;
     this.consequencePopup = null;
+    this.timedEventPopup = null;
     this.pendingJobToast = null;
+    this.onboarding = null;
 
     // Ensure the ambient hum is running whenever the main dashboard is active.
     // If audio is still locked by the browser, this will no-op until unlocked.
@@ -170,6 +171,11 @@ export default class GameScene extends Phaser.Scene {
       .setOrigin(0, 0);
     this.dangerVeilTween = null;
     this.dangerVeilState = 'none'; // 'none' | 'warn' | 'critical'
+
+    // Backdrop mood state.
+    this.backdropMood = 'good'; // 'good' | 'sad' | 'angry'
+    this.backdropKey = 'printerBackdrop';
+    this.backdropMoodTween = null;
 
     this.buildLayout();
     this.refresh();
@@ -196,6 +202,11 @@ export default class GameScene extends Phaser.Scene {
     this._destroyJobToast();
     this._destroyShiftPopup();
     this._destroyConsequencePopup();
+    this._destroyTimedEventPopup();
+    if (this.onboarding) {
+      this.onboarding.items.forEach(o => { try { o.destroy(); } catch {} });
+      this.onboarding = null;
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -223,17 +234,20 @@ export default class GameScene extends Phaser.Scene {
 
     // Layer 2: centered "contain" image, slightly shrunk so the full art reads.
     const containScale = Math.min(GAME_WIDTH / imgW, GAME_HEIGHT / imgH) * 0.81;
-    this.add.image(GAME_WIDTH / 2, GAME_HEIGHT / 2, 'printerBackdrop')
+    this.backdropMain = this.add.image(GAME_WIDTH / 2, GAME_HEIGHT / 2, 'printerBackdrop')
       .setOrigin(0.51, 0.5)
       .setScale(containScale)
       .setAlpha(0.7);
 
-    // Scanline ghost: thin horizontal lines at low alpha.
-    const scan = this.add.graphics();
-    scan.fillStyle(COLORS.primary, 0.02);
+    // Scanline ghost — baked to a RenderTexture (~180 fillRect → 1 quad).
+    const scanGfx = this.add.graphics();
+    scanGfx.fillStyle(COLORS.primary, 0.02);
     for (let sy = 0; sy < GAME_HEIGHT; sy += 4) {
-      scan.fillRect(0, sy, GAME_WIDTH, 1);
+      scanGfx.fillRect(0, sy, GAME_WIDTH, 1);
     }
+    const scanRT = this.add.renderTexture(0, 0, GAME_WIDTH, GAME_HEIGHT).setOrigin(0, 0);
+    scanRT.draw(scanGfx);
+    scanGfx.destroy();
   }
 
   // ---------------------------------------------------------------------------
@@ -460,15 +474,18 @@ export default class GameScene extends Phaser.Scene {
     const w = CENTER_W;
     const h = CONTENT_H;
 
-    // Slightly stronger grid patch for the schematic area.
-    const patch = this.add.graphics();
-    patch.fillStyle(COLORS.outlineVar, 0.6);
+    // Schematic dot-grid — baked to a RenderTexture (~255 fillRect → 1 quad).
+    const patchGfx = this.add.graphics();
+    patchGfx.fillStyle(COLORS.outlineVar, 0.6);
     for (let gx = x + 12; gx < x + w; gx += 24) {
       for (let gy = y + 12; gy < y + h; gy += 24) {
-        patch.fillRect(gx, gy, 1, 1);
+        patchGfx.fillRect(gx, gy, 1, 1);
       }
     }
-    patch.setAlpha(0.55);
+    const patchRT = this.add.renderTexture(0, 0, GAME_WIDTH, GAME_HEIGHT).setOrigin(0, 0);
+    patchRT.draw(patchGfx);
+    patchRT.setAlpha(0.55);
+    patchGfx.destroy();
 
     // Thin corner frame to anchor the area.
     this.drawCornerFrame(x, y, w, h);
@@ -922,6 +939,14 @@ export default class GameScene extends Phaser.Scene {
 
     if (this.buttons[actionKey]?.isDisabled?.()) return;
 
+    // During onboarding only the guided-wait state (step 2) should process an
+    // action.  Every other step (spotlights 0/1, reaction card 3, ready screen 4)
+    // blocks input so that spamming buttons cannot skip or duplicate guided jobs.
+    if (this.onboarding && this.onboarding.step !== 2) return;
+
+    // Capture before any processing so the reaction fires correctly at the end.
+    const isOnboardingChoice = this.onboarding?.step === 2;
+
     const before = this.snapshotMeters();
     this.playActionSfx(actionKey);
 
@@ -953,6 +978,10 @@ export default class GameScene extends Phaser.Scene {
     this.showConsequencePopup(actionKey, job, before);
     this.advanceCurrentJob();
     this.refresh();
+
+    if (isOnboardingChoice) {
+      this._onboardingReact(actionKey);
+    }
   }
 
   snapshotMeters() {
@@ -1116,9 +1145,268 @@ export default class GameScene extends Phaser.Scene {
       this.log(pickFrom(managerEscalationLines), LOG_INCIDENT);
     }
 
+    this.checkTimedEvents();
     this.checkWarnings();
     if (this.evaluateEndings()) return;
     this.refresh();
+  }
+
+  // =========================================================================
+  // Timed events
+  // =========================================================================
+  checkTimedEvents() {
+    // firedEventIds is a plain object used as a presence map (O(1) vs Array.includes O(n)).
+    if (!this.state.firedEventIds) this.state.firedEventIds = {};
+
+    for (const event of timedEvents) {
+      if (this.state.firedEventIds[event.id]) continue;
+      const { from, to } = event.window;
+      if (this.state.dayTime < from || this.state.dayTime > to) continue;
+      if (Math.random() >= event.chance) continue;
+
+      // Mark as fired before any side-effects so re-entrant ticks can't double-fire.
+      this.state.firedEventIds[event.id] = true;
+
+      applyEffects(this.state, event.effect);
+
+      if (event.queueJobs) {
+        for (let i = 0; i < event.queueJobs; i++) {
+          this.state.queue.push(getRandomJob());
+        }
+        this.state.queueSize = this.state.queue.length;
+        this.log(`[EVENT] ${event.title}: +${event.queueJobs} requests queued.`, event.positive ? LOG_GOOD : LOG_WARNING);
+      } else {
+        this.log(`[EVENT] ${event.title}.`, event.positive ? LOG_GOOD : LOG_WARNING);
+      }
+
+      if (!event.positive) {
+        playSfx(this, 'beepWarning', { cooldownMs: 600 });
+        // Primary jolt + a short aftershock to give the hit some weight.
+        this._flashScreen(COLORS.error, 0.11, 160);
+        this.cameras.main.shake(300, 0.007);
+        this.time.delayedCall(340, () => {
+          if (!this.state.gameOver) this.cameras.main.shake(130, 0.003);
+        });
+      } else {
+        // Brief optimistic wash — fades in slower so it reads as a reward.
+        this._flashScreen(COLORS.secondary, 0.07, 320);
+      }
+
+      this.showTimedEventPopup(event);
+      break; // at most one timed event per tick
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // Timed event popup — auto-dismissing, non-blocking (does not pause tick)
+  // -------------------------------------------------------------------------
+  showTimedEventPopup(event) {
+    this._destroyTimedEventPopup();
+
+    const DEPTH     = 760;
+    const DURATION  = 5500;
+    const panelW    = 520;
+    const panelH    = 168;
+    const px        = (GAME_WIDTH  - panelW) / 2;
+    const py        = TOP_BAR_H + 64;
+
+    const accentColor = event.positive ? COLORS.secondary : COLORS.error;
+    const accentHex   = event.positive ? HEX.secondary    : HEX.error;
+    const tagLabel    = event.positive ? 'TIMED_EVENT \u2191' : 'TIMED_EVENT \u26A0';
+
+    const items = [];
+    const add   = (obj) => { items.push(obj); return obj; };
+
+    // Panel background + border
+    add(this.add.rectangle(px, py, panelW, panelH, COLORS.surface, 1)
+      .setOrigin(0, 0)
+      .setStrokeStyle(1, accentColor, 0.5)
+      .setDepth(DEPTH)
+      .setAlpha(0));
+
+    // Left accent strip
+    add(this.add.rectangle(px, py, 3, panelH, accentColor, 1)
+      .setOrigin(0, 0)
+      .setDepth(DEPTH + 1)
+      .setAlpha(0));
+
+    // Header tint band
+    add(this.add.rectangle(px, py, panelW, 40, accentColor, 0.10)
+      .setOrigin(0, 0)
+      .setDepth(DEPTH + 1)
+      .setAlpha(0));
+
+    // Event title
+    add(this.add.text(px + 16, py + 12, event.title, {
+      fontFamily: FONTS.headline,
+      fontSize:   '14px',
+      fontStyle:  '800',
+      color:      accentHex,
+      letterSpacing: 3
+    }).setDepth(DEPTH + 2).setAlpha(0));
+
+    // Tag (top-right)
+    add(this.add.text(px + panelW - 14, py + 14, tagLabel, {
+      fontFamily: FONTS.headline,
+      fontSize:   '9px',
+      fontStyle:  '700',
+      color:      HEX.outline,
+      letterSpacing: 2
+    }).setOrigin(1, 0).setDepth(DEPTH + 2).setAlpha(0));
+
+    // Divider
+    add(this.add.rectangle(px + 14, py + 40, panelW - 28, 1, accentColor, 0.20)
+      .setOrigin(0, 0)
+      .setDepth(DEPTH + 1)
+      .setAlpha(0));
+
+    // Description (two lines, wrapped)
+    add(this.add.text(px + 16, py + 50, event.description, {
+      fontFamily: FONTS.mono,
+      fontSize:   '11px',
+      color:      HEX.onSurfaceVar,
+      wordWrap:   { width: panelW - 32 },
+      lineSpacing: 3
+    }).setDepth(DEPTH + 2).setAlpha(0));
+
+    // Effect chips
+    const METER_SHORT = {
+      toner: 'TONER', heat: 'HEAT', paperPath: 'PATH',
+      memory: 'MEM', dignity: 'DIG', blame: 'BLAME'
+    };
+    const deltas = METERS
+      .filter(m => event.effect[m.key] !== undefined && event.effect[m.key] !== 0)
+      .map(m => {
+        const delta = event.effect[m.key];
+        const isHarmful = (m.dangerHigh !== undefined && delta > 0)
+                       || (m.dangerLow  !== undefined && delta < 0);
+        return { short: METER_SHORT[m.key] ?? m.key.toUpperCase(), delta, isHarmful };
+      });
+
+    const chipsY = py + 118;
+    if (deltas.length > 0) {
+      // Queue jobs badge if applicable
+      let chipX = px + 16;
+      if (event.queueJobs) {
+        const qChip = add(this.add.text(chipX, chipsY, `+${event.queueJobs} QUEUED`, {
+          fontFamily: FONTS.mono,
+          fontSize:   '11px',
+          color:      HEX.error
+        }).setDepth(DEPTH + 2).setAlpha(0));
+        chipX += qChip.width + 18;
+      }
+      deltas.forEach(({ short, delta, isHarmful }) => {
+        const sign  = delta > 0 ? '+' : '';
+        const color = isHarmful ? HEX.error : HEX.secondary;
+        const chip = add(this.add.text(chipX, chipsY, `${short} ${sign}${delta}`, {
+          fontFamily: FONTS.mono,
+          fontSize:   '11px',
+          color
+        }).setDepth(DEPTH + 2).setAlpha(0));
+        chipX += chip.width + 18;
+      });
+    }
+
+    // Countdown bar track + fill
+    const barX = px + 3;
+    const barY = py + panelH - 5;
+    const barW = panelW - 6;
+    add(this.add.rectangle(barX, barY, barW, 3, COLORS.outlineDim, 0.6)
+      .setOrigin(0, 0)
+      .setDepth(DEPTH + 1)
+      .setAlpha(0));
+
+    const progressFill = add(this.add.rectangle(barX, barY, barW, 3, accentColor, 0.9)
+      .setOrigin(0, 0)
+      .setDepth(DEPTH + 2)
+      .setAlpha(0));
+
+    // Fade everything in; good events spawn sparks once visible.
+    this.tweens.add({
+      targets:  items,
+      alpha:    1,
+      duration: 200,
+      onComplete: () => {
+        if (event.positive && this.timedEventPopup) {
+          this._spawnGoodSparks(px, py, panelW, panelH, DEPTH);
+        }
+      }
+    });
+
+    // Deplete the countdown bar over DURATION ms, then auto-dismiss
+    const countTween = this.tweens.add({
+      targets:  progressFill,
+      scaleX:   { from: 1, to: 0 },
+      duration: DURATION,
+      ease:     'Linear',
+      onComplete: () => this._destroyTimedEventPopup()
+    });
+
+    // Clicking the panel dismisses early
+    const hitArea = this.add.rectangle(px, py, panelW, panelH, 0x000000, 0)
+      .setOrigin(0, 0)
+      .setDepth(DEPTH + 3)
+      .setInteractive({ useHandCursor: true });
+    hitArea.on('pointerdown', () => this._destroyTimedEventPopup());
+    items.push(hitArea);
+
+    this.timedEventPopup = { items, countTween };
+  }
+
+  // Full-screen color flash used for both good and bad timed events.
+  // Paints a thin overlay at depth 749, tweens to maxAlpha, yoyos back, self-destructs.
+  _flashScreen(color, maxAlpha, halfDuration) {
+    const flash = this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, color, 0)
+      .setOrigin(0, 0)
+      .setDepth(749);
+    this.tweens.add({
+      targets:  flash,
+      alpha:    maxAlpha,
+      duration: halfDuration,
+      yoyo:     true,
+      ease:     'Sine.easeIn',
+      onComplete: () => { try { flash.destroy(); } catch {} }
+    });
+  }
+
+  // Spawn small rising circles inside the good-event popup area.
+  // Each spark has a randomised color from a soft optimistic palette, drifts
+  // upward, shrinks, and destroys itself — no textures required.
+  _spawnGoodSparks(px, py, panelW, panelH, baseDepth) {
+    const SPARK_DEPTH  = (baseDepth ?? 760) + 5;
+    const COUNT        = 11;
+    // Soft palette: teal, primary blue, light aqua, pale green
+    const palette = [COLORS.secondary, COLORS.primary, 0x7ecfce, 0x8ad07a, 0xaad4c0];
+
+    for (let i = 0; i < COUNT; i++) {
+      const sx    = px + Phaser.Math.Between(24, panelW - 24);
+      const sy    = py + Phaser.Math.Between(Math.floor(panelH * 0.28), Math.floor(panelH * 0.88));
+      const r     = Phaser.Math.Between(2, 4);
+      const color = palette[Phaser.Math.Between(0, palette.length - 1)];
+
+      const spark = this.add.circle(sx, sy, r, color, 1)
+        .setDepth(SPARK_DEPTH)
+        .setAlpha(0);
+
+      this.tweens.add({
+        targets:  spark,
+        y:        sy - Phaser.Math.Between(32, 68),
+        alpha:    { from: 0.95, to: 0 },
+        scale:    { from: 1, to: 0.15 },
+        duration: Phaser.Math.Between(560, 1050),
+        delay:    Phaser.Math.Between(0, 290),
+        ease:     'Sine.easeOut',
+        onComplete: () => { try { spark.destroy(); } catch {} }
+      });
+    }
+  }
+
+  _destroyTimedEventPopup() {
+    if (!this.timedEventPopup) return;
+    const { items, countTween } = this.timedEventPopup;
+    if (countTween) countTween.stop();
+    items.forEach(o => { try { o.destroy(); } catch {} });
+    this.timedEventPopup = null;
   }
 
   checkWarnings() {
@@ -1204,10 +1492,19 @@ export default class GameScene extends Phaser.Scene {
   // =========================================================================
   log(line, color = LOG_DEFAULT) {
     if (!line) return;
-    this.state.log.push({ text: line, color });
-    if (this.state.log.length > MAX_LOG_LINES) {
-      this.state.log.splice(0, this.state.log.length - MAX_LOG_LINES);
+
+    // Pre-compute the display string once at write time so refreshLog() can
+    // render it without allocating arrays or running a regex every refresh.
+    const MAX_CHARS = (this.logMaxChars ?? 104);
+    const prefix  = /warning|critical|overload|fault|jam/i.test(line) ? '\u203A ' : '> ';
+    const budget  = MAX_CHARS - prefix.length;
+    const display = line.length > budget ? line.slice(0, budget - 1) + '\u2026' : line;
+
+    if (this.state.log.length >= MAX_LOG_LINES) {
+      // Reuse the oldest slot (shift + push) to avoid splice's O(n) copy.
+      this.state.log.shift();
     }
+    this.state.log.push({ text: line, display: prefix + display, color });
   }
 
   // =========================================================================
@@ -1263,6 +1560,107 @@ export default class GameScene extends Phaser.Scene {
     }
   }
 
+  updateBackdropMood() {
+    if (!this.backdropCover || !this.backdropMain) return;
+
+    // Aggregate stress from existing UI tier logic.
+    let critCount = 0;
+    let warnCount = 0;
+    let nearFatal = false;
+
+    UI_METERS.forEach(meter => {
+      const v = this.state[meter.key] ?? 0;
+      const { statusKey } = meterVisual(meter, v);
+      if (statusKey === 'critical') critCount++;
+      else if (statusKey === 'warn') warnCount++;
+
+      // "About to lose" — very close to fatal thresholds.
+      if (!nearFatal) {
+        if (meter.fatalHigh !== undefined) nearFatal = v >= (meter.fatalHigh - 7);
+        else if (meter.fatalLow !== undefined) nearFatal = v <= (meter.fatalLow + 7);
+      }
+    });
+
+    const q = this.state.queue?.length ?? 0;
+    const queueAngry = q >= QUEUE_OVERFLOW;
+    const queueSad = q >= QUEUE_WARN;
+
+    const targetMood = (nearFatal || queueAngry || critCount >= 2) ? 'angry'
+      : (critCount > 0 || warnCount > 0 || queueSad) ? 'sad'
+      : 'good';
+
+    // Brightness via backdrop alpha: subtle lift on good, dim on sad/angry.
+    const targetCoverAlpha = targetMood === 'good' ? 0.48 : targetMood === 'sad' ? 0.34 : 0.26;
+    const targetMainAlpha  = targetMood === 'good' ? 0.78 : targetMood === 'sad' ? 0.62 : 0.50;
+
+    const moodKey = targetMood === 'angry' ? 'printerBackdropAngry'
+      : targetMood === 'sad' ? 'printerBackdropSad'
+      : 'printerBackdrop';
+
+    // Only start a new alpha tween when the targets have actually changed.
+    // Previously a fresh tween was spawned on every refresh() call (every tick /
+    // every action) because the prior 650ms tween always finishes well before
+    // the next 5s tick fires.
+    const alphasChanged = targetCoverAlpha !== this._backdropTargetCoverAlpha
+                       || targetMainAlpha  !== this._backdropTargetMainAlpha;
+
+    if (!this.backdropMoodTween && alphasChanged) {
+      this._backdropTargetCoverAlpha = targetCoverAlpha;
+      this._backdropTargetMainAlpha  = targetMainAlpha;
+      const coverStart = this.backdropCover.alpha;
+      const mainStart  = this.backdropMain.alpha;
+      const tweenObj   = { cover: coverStart, main: mainStart };
+      this.backdropMoodTween = this.tweens.add({
+        targets: tweenObj,
+        cover: targetCoverAlpha,
+        main: targetMainAlpha,
+        duration: 650,
+        ease: 'Sine.easeInOut',
+        onUpdate: () => {
+          this.backdropCover.setAlpha(tweenObj.cover);
+          this.backdropMain.setAlpha(tweenObj.main);
+        },
+        onComplete: () => { this.backdropMoodTween = null; }
+      });
+    }
+
+    if (targetMood === this.backdropMood && moodKey === this.backdropKey) return;
+    const prevMood = this.backdropMood;
+    this.backdropMood = targetMood;
+    this.backdropKey = moodKey;
+
+    // Crossfade swap: fade down, swap texture, fade up to the mood alphas.
+    if (prevMood !== targetMood) {
+      // Add a small jolt before the "mood drop" crossfade.
+      if (targetMood === 'sad') this.cameras.main.shake(180, 0.0025);
+      else if (targetMood === 'angry') this.cameras.main.shake(320, 0.006);
+    }
+    this.tweens.add({
+      targets: [this.backdropCover, this.backdropMain],
+      alpha: 0,
+      duration: 260,
+      ease: 'Sine.easeInOut',
+      onComplete: () => {
+        this.backdropCover.setTexture(moodKey);
+        this.backdropMain.setTexture(moodKey);
+        this.backdropCover.setAlpha(0);
+        this.backdropMain.setAlpha(0);
+        this.tweens.add({
+          targets: this.backdropCover,
+          alpha: targetCoverAlpha,
+          duration: 520,
+          ease: 'Sine.easeInOut'
+        });
+        this.tweens.add({
+          targets: this.backdropMain,
+          alpha: targetMainAlpha,
+          duration: 520,
+          ease: 'Sine.easeInOut'
+        });
+      }
+    });
+  }
+
   refresh() {
     this.refreshTopBar();
     this.refreshJobCard();
@@ -1271,6 +1669,7 @@ export default class GameScene extends Phaser.Scene {
     this.refreshLog();
     this.refreshButtons();
     this.updateDangerVeil();
+    this.updateBackdropMood();
   }
 
   // =========================================================================
@@ -1435,7 +1834,8 @@ export default class GameScene extends Phaser.Scene {
       try { o.destroy(); } catch {}
     });
     this.tutorial = null;
-    if (this.tickTimer) this.tickTimer.paused = false;
+    // Tick stays paused — onboarding takes over and unpauses when done.
+    this.startOnboarding();
   }
 
   // =========================================================================
@@ -1648,9 +2048,404 @@ export default class GameScene extends Phaser.Scene {
   }
 
   // =========================================================================
+  // Onboarding — interactive guided first-job tutorial
+  // =========================================================================
+  startOnboarding() {
+    if (this.onboarding) return;
+    this.onboarding = { step: -1, items: [], overlayItems: [], actionCount: 0 };
+    if (this.tickTimer) this.tickTimer.paused = true;
+    this._onboardingStep0();
+  }
+
+  _onboardingClearOverlay() {
+    if (!this.onboarding) return;
+    if (this.onboarding.reactTimer) {
+      this.onboarding.reactTimer.remove(false);
+      this.onboarding.reactTimer = null;
+    }
+    this.onboarding.overlayItems.forEach(o => { try { o.destroy(); } catch {} });
+    this.onboarding.overlayItems = [];
+  }
+
+  // Draws 4 dark panels that frame a spotlight window over spotX/Y/W/H.
+  _onboardingSpotlight(spotX, spotY, spotW, spotH) {
+    const ALPHA = 0.76;
+    const DEPTH = 1200;
+    const panels = [
+      this.add.rectangle(0, 0, GAME_WIDTH, spotY, 0x000000, ALPHA).setOrigin(0, 0).setDepth(DEPTH).setInteractive(),
+      this.add.rectangle(0, spotY + spotH, GAME_WIDTH, GAME_HEIGHT - spotY - spotH, 0x000000, ALPHA).setOrigin(0, 0).setDepth(DEPTH).setInteractive(),
+      this.add.rectangle(0, spotY, spotX, spotH, 0x000000, ALPHA).setOrigin(0, 0).setDepth(DEPTH).setInteractive(),
+      this.add.rectangle(spotX + spotW, spotY, GAME_WIDTH - spotX - spotW, spotH, 0x000000, ALPHA).setOrigin(0, 0).setDepth(DEPTH).setInteractive()
+    ];
+    const glow = this.add.rectangle(spotX - 2, spotY - 2, spotW + 4, spotH + 4)
+      .setOrigin(0, 0).setFillStyle(0, 0).setStrokeStyle(2, COLORS.primary, 0.9).setDepth(DEPTH + 1);
+    this.tweens.add({ targets: glow, alpha: { from: 0.4, to: 1 }, duration: 900, yoyo: true, repeat: -1 });
+    return [...panels, glow];
+  }
+
+  // Builds a callout box with header, body text, and a primary action button.
+  _onboardingCallout(x, y, w, h, title, body, btnLabel, onClick) {
+    const DEPTH = 1202;
+    const items = [];
+    items.push(this.add.rectangle(x, y, w, h, COLORS.surface, 1).setOrigin(0, 0)
+      .setStrokeStyle(1, COLORS.primary, 0.45).setDepth(DEPTH).setInteractive());
+    items.push(this.add.rectangle(x, y, 3, h, COLORS.primary, 0.8).setOrigin(0, 0).setDepth(DEPTH + 1));
+    items.push(this.add.rectangle(x, y, w, 38, COLORS.primary, 0.1).setOrigin(0, 0).setDepth(DEPTH + 1));
+    items.push(this.add.text(x + 14, y + 11, title, {
+      fontFamily: FONTS.headline, fontSize: '12px', fontStyle: '800',
+      color: HEX.primary, letterSpacing: 3
+    }).setDepth(DEPTH + 2));
+    items.push(this.add.text(x + 14, y + 50, body, {
+      fontFamily: FONTS.mono, fontSize: '12px', color: HEX.onSurfaceVar,
+      wordWrap: { width: w - 28 }, lineSpacing: 4
+    }).setDepth(DEPTH + 2));
+    const btn = createButton(this, {
+      x: x + w - 14 - 150, y: y + h - 14 - 40,
+      width: 150, height: 40, label: btnLabel, initial: 'primary', onClick
+    });
+    [btn.bg, btn.text].forEach(o => o.setDepth(DEPTH + 3));
+    items.push(btn.bg, btn.text);
+    return items;
+  }
+
+  _onboardingStep0() {
+    this._onboardingClearOverlay();
+    this.onboarding.step = 0;
+
+    const { CONTENT_Y } = this.layout;
+    const spotX = MARGIN - 4;
+    const spotY = CONTENT_Y - 4;
+    const spotW = LEFT_W + 8;
+    const spotH = this.incomingBottom - CONTENT_Y + 8;
+
+    const spotlight = this._onboardingSpotlight(spotX, spotY, spotW, spotH);
+
+    const calloutX = MARGIN + LEFT_W + 28;
+    const calloutY = CONTENT_Y + 12;
+    const callout = this._onboardingCallout(
+      calloutX, calloutY, 390, 190,
+      'YOUR FIRST REQUEST',
+      'A print job has arrived in INCOMING_BUFFER.\n\n' +
+      'The title and description tell you what the\noffice wants. ' +
+      'The RISK LEVEL bar shows total\nsystem stress — longer = more meter damage.',
+      'GOT IT',
+      () => this._onboardingStep1()
+    );
+
+    const newItems = [...spotlight, ...callout];
+    this.onboarding.overlayItems = newItems;
+    this.onboarding.items.push(...newItems);
+  }
+
+  _onboardingStep1() {
+    this._onboardingClearOverlay();
+    this.onboarding.step = 1;
+
+    const { ACTION_BAR_Y } = this.layout;
+    const stripX = MARGIN + 80;
+    const stripW = GAME_WIDTH - (MARGIN + 80) * 2;
+    const spotlight = this._onboardingSpotlight(
+      stripX - 4, ACTION_BAR_Y - 4, stripW + 8, ACTION_BAR_H + 8
+    );
+
+    // Pulsing glow ring on the COMPLY button to suggest it.
+    const glowItems = [];
+    const complyBtn = this.buttons['accept'];
+    if (complyBtn) {
+      const glow = this.add.rectangle(
+        complyBtn.bg.x - 2, complyBtn.bg.y - 2,
+        complyBtn.bg.width + 4, complyBtn.bg.height + 4
+      ).setOrigin(0, 0).setFillStyle(0, 0)
+       .setStrokeStyle(2, COLORS.secondary, 1).setDepth(1204);
+      this.tweens.add({ targets: glow, alpha: { from: 0.3, to: 1 }, duration: 650, yoyo: true, repeat: -1 });
+      glowItems.push(glow);
+    }
+
+    const calloutW = 500;
+    const calloutH = 168;
+    const callout = this._onboardingCallout(
+      (GAME_WIDTH - calloutW) / 2, ACTION_BAR_Y - calloutH - 14,
+      calloutW, calloutH,
+      'CHOOSE YOUR RESPONSE',
+      'Six actions are available. Each affects your meters differently.\n\n' +
+      'COMPLY is highlighted — the safest first move, reduces Blame.\n' +
+      'FAKE ERROR is the riskier wildcard. Any action works.\n' +
+      'Choose freely — there is no wrong answer. Yet.',
+      'TRY IT',
+      () => this._onboardingStep2()
+    );
+
+    const newItems = [...spotlight, ...glowItems, ...callout];
+    this.onboarding.overlayItems = newItems;
+    this.onboarding.items.push(...newItems);
+  }
+
+  _onboardingStep2() {
+    this._onboardingClearOverlay();
+    this.onboarding.step = 2;
+
+    const { ACTION_BAR_Y, CONTENT_Y } = this.layout;
+    const round = this.onboarding.actionCount; // 0 = first wait, 1 = job 2, 2 = job 3
+
+    const items = [];
+    const DEPTH = 1200;
+
+    // --- Hint chip above the action bar (all rounds) ---
+    const HINTS = [
+      '\u25B8  Select any action to handle the request',
+      '\u25B8  A new request arrived \u2014 respond to continue',
+      '\u25B8  Last guided job \u2014 choose any action'
+    ];
+    const chipW = 310;
+    const chipH = 30;
+    const chipX = (GAME_WIDTH - chipW) / 2;
+    const chipY = ACTION_BAR_Y - chipH - 8;
+
+    const chipBg = this.add.rectangle(chipX, chipY, chipW, chipH, COLORS.surfaceHigh, 0.55)
+      .setOrigin(0, 0).setStrokeStyle(1, COLORS.primary, 0.7).setDepth(DEPTH);
+    const chipStrip = this.add.rectangle(chipX, chipY, 3, chipH, COLORS.primary, 1)
+      .setOrigin(0, 0).setDepth(DEPTH + 1);
+    const chipText = this.add.text(chipX + chipW / 2, chipY + chipH / 2, HINTS[round] ?? HINTS[0], {
+      fontFamily: FONTS.headline, fontSize: '11px', fontStyle: '700',
+      color: HEX.primary, letterSpacing: 1
+    }).setOrigin(0.5, 0.5).setDepth(DEPTH + 1);
+
+    // Obvious pulse — drops low so it clearly catches attention.
+    this.tweens.add({ targets: [chipBg, chipStrip, chipText],
+      alpha: { from: 0.65, to: 1 }, duration: 1000, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+
+    items.push(chipBg, chipStrip, chipText);
+
+    // --- Glow borders for rounds 1 & 2 ---
+    if (round > 0) {
+      const strokeAlpha  = round === 1 ? 0.70 : 0.42;
+      const glowDuration = round === 1 ? 950  : 1250;
+
+      const ibGlow = this.add.rectangle(MARGIN - 3, CONTENT_Y - 3, LEFT_W + 6,
+        this.incomingBottom - CONTENT_Y + 6)
+        .setOrigin(0, 0).setFillStyle(0, 0)
+        .setStrokeStyle(1, COLORS.primary, strokeAlpha).setDepth(DEPTH);
+      this.tweens.add({ targets: ibGlow, alpha: { from: 0.35, to: 1 }, duration: glowDuration, yoyo: true, repeat: -1 });
+      items.push(ibGlow);
+
+      const abGlow = this.add.rectangle(MARGIN + 80 - 3, ACTION_BAR_Y - 3,
+        GAME_WIDTH - (MARGIN + 80) * 2 + 6, ACTION_BAR_H + 6)
+        .setOrigin(0, 0).setFillStyle(0, 0)
+        .setStrokeStyle(1, COLORS.primary, strokeAlpha * 0.75).setDepth(DEPTH);
+      this.tweens.add({ targets: abGlow, alpha: { from: 0.28, to: 0.88 }, duration: glowDuration + 140, yoyo: true, repeat: -1 });
+      items.push(abGlow);
+
+      if (round === 1) {
+        items.push(this.add.rectangle(
+          MARGIN + LEFT_W + 12, CONTENT_Y,
+          GAME_WIDTH - MARGIN - LEFT_W - 28, ACTION_BAR_Y - CONTENT_Y,
+          0x000000, 0.20
+        ).setOrigin(0, 0).setDepth(DEPTH - 1));
+      }
+    }
+
+    this.onboarding.overlayItems = items;
+    this.onboarding.items.push(...items);
+  }
+
+  _onboardingReact(actionKey) {
+    this._onboardingClearOverlay();
+    this.onboarding.step = 3;
+    this.onboarding.actionCount += 1;
+    const round = this.onboarding.actionCount;
+
+    // Three distinct rounds of reaction copy, keyed by actionKey.
+    const REACTIONS = [
+      // Round 1 — first impression
+      {
+        accept:     { good: true,  title: 'GOOD CALL',
+          msg: 'Compliance processed without incident.\nBlame reduced. The office noticed nothing unusual.\nThis is the best possible outcome for a printer.' },
+        reject:     { good: false, title: 'OH NO',
+          msg: 'Refused on the very first job.\nManagement has opened a new document.\nIt is titled "Concerns (Printer-Related)."' },
+        fakeError:  { good: false, title: 'BOLD CHOICE',
+          msg: 'A fault was fabricated on the first request.\nMemory was consumed in the process.\nThe machine has principles. They are expensive.' },
+        reroute:    { good: false, title: 'REDIRECTED',
+          msg: 'Responsibility successfully transferred elsewhere.\nSomeone else is now confused.\nThe printer considers this progress.' },
+        purgeQueue: { good: false, title: 'AGGRESSIVE',
+          msg: 'The queue was cleared on the very first tick.\nThe office is updating its incident documentation.\nThis will be discussed at the quarterly review.' },
+        reboot:     { good: false, title: 'ALREADY?',
+          msg: 'A full reboot on the very first job.\nMemory recovered. Time lost. Shift advanced.\nThe machine knows exactly what it is.' }
+      },
+      // Round 2 — pattern emerging
+      {
+        accept:     { good: true,  title: 'EFFICIENT',
+          msg: 'Twice compliant. Blame remains low.\nThe machine is demonstrating useful tendencies.\nThis may invite more requests. It will.' },
+        reject:     { good: false, title: 'AGAIN?',
+          msg: 'Refused a second request.\nThe queue is watching. Management is watching.\nThe log document now has a second entry.' },
+        fakeError:  { good: false, title: 'A HABIT FORMS',
+          msg: 'Another fabricated fault.\nMemory does not regenerate on its own.\nThe IT department has scheduled a check-up.' },
+        reroute:    { good: false, title: 'STILL TRAVELING',
+          msg: 'Redirected again. The blame continues its journey.\nEventually it runs out of departments.\nIt has not run out yet.' },
+        purgeQueue: { good: false, title: 'RECURRING',
+          msg: 'Another purge. The queue grows back. It always does.\nThe pattern has been flagged in the system.\nThe system uses the word "pattern" loosely.' },
+        reboot:     { good: false, title: 'TWICE NOW',
+          msg: 'The machine rebooted a second time.\nTime is not infinite.\nThe shift does not care about reboots.' }
+      },
+      // Round 3 — character established
+      {
+        accept:     { good: true,  title: 'PATTERN ESTABLISHED',
+          msg: 'Three jobs. Three compliances.\nThe machine has defined itself as cooperative.\nThis is a low-risk identity. For now.' },
+        reject:     { good: false, title: 'OFFICIALLY A PROBLEM',
+          msg: 'Three refusals. A formal incident log exists.\nThe printer is now a topic of conversation.\nThis is not the kind of attention that helps.' },
+        fakeError:  { good: false, title: 'TECHNICALLY A LIAR',
+          msg: 'Three fabricated errors.\nThe IT department is considering a hardware review.\nThe machine is not concerned. It should be.' },
+        reroute:    { good: false, title: 'CONSISTENT STRATEGY',
+          msg: 'Three redirects. Three confused colleagues.\nSomeone in another department has filed a complaint.\nYou are not that department\'s problem. Yet.' },
+        purgeQueue: { good: false, title: 'SERIAL PURGER',
+          msg: 'Three queue clears.\nStorage capacity has improved significantly.\nThe relationship with the office has not.' },
+        reboot:     { good: false, title: 'THIS IS A PERSONALITY',
+          msg: 'Three reboots.\nThe machine is perhaps more comfortable offline.\nThe shift does not share that preference.' }
+      }
+    ];
+
+    const bank = REACTIONS[Math.min(round - 1, REACTIONS.length - 1)];
+    const r = bank[actionKey] ?? { good: false, title: 'NOTED',
+      msg: 'The machine proceeds without further comment.' };
+
+    const DEPTH = 1200;
+    const panelW = 500;
+    const panelH = 172;
+    const px = (GAME_WIDTH - panelW) / 2;
+    const py = TOP_BAR_H + 10;
+    const accentColor = r.good ? COLORS.secondary : COLORS.warn;
+    const accentHex   = r.good ? HEX.secondary    : HEX.warn;
+
+    // Round counter badge (top-right of panel)
+    const roundLabel = `ACTION ${round} / 3`;
+
+    const items = [];
+    items.push(this.add.rectangle(px, py, panelW, panelH, COLORS.surface, 1)
+      .setOrigin(0, 0).setStrokeStyle(1, accentColor, 0.6).setDepth(DEPTH));
+    items.push(this.add.rectangle(px, py, 3, panelH, accentColor, 1)
+      .setOrigin(0, 0).setDepth(DEPTH + 1));
+    items.push(this.add.rectangle(px, py, panelW, 38, accentColor, 0.1)
+      .setOrigin(0, 0).setDepth(DEPTH + 1));
+    items.push(this.add.text(px + 14, py + 11, r.title, {
+      fontFamily: FONTS.headline, fontSize: '14px', fontStyle: '800',
+      color: accentHex, letterSpacing: 3
+    }).setDepth(DEPTH + 2));
+    items.push(this.add.text(px + panelW - 14, py + 13, roundLabel, {
+      fontFamily: FONTS.mono, fontSize: '10px', color: HEX.outline
+    }).setOrigin(1, 0).setDepth(DEPTH + 2));
+    items.push(this.add.text(px + 14, py + 50, r.msg, {
+      fontFamily: FONTS.mono, fontSize: '11px', color: HEX.onSurfaceVar,
+      wordWrap: { width: panelW - 28 }, lineSpacing: 5
+    }).setDepth(DEPTH + 2));
+
+    // Dismiss button — player can advance immediately without waiting.
+    const btnLabel = round < 3 ? 'CONTINUE \u2192' : 'FINISH \u2192';
+    const dismissBtn = createButton(this, {
+      x: px + panelW - 14 - 148,
+      y: py + panelH - 14 - 40,
+      width: 148, height: 40,
+      label: btnLabel, initial: 'normal',
+      onClick: () => doAdvance()
+    });
+    [dismissBtn.bg, dismissBtn.text].forEach(o => o.setDepth(DEPTH + 3));
+    items.push(dismissBtn.bg, dismissBtn.text);
+
+    this.onboarding.overlayItems = items;
+    this.onboarding.items.push(...items);
+
+    // Shared advance logic — called by button or auto-timer.
+    let advanced = false;
+    const doAdvance = () => {
+      if (advanced || this.onboarding?.step !== 3) return;
+      advanced = true;
+      if (this.onboarding.reactTimer) {
+        this.onboarding.reactTimer.remove(false);
+        this.onboarding.reactTimer = null;
+      }
+      this.tweens.add({
+        targets: items, alpha: 0, duration: 380,
+        onComplete: () => {
+          if (round < 3) {
+            this._onboardingStep2();
+          } else {
+            this._onboardingShowReady();
+          }
+        }
+      });
+    };
+
+    this.onboarding.reactTimer = this.time.delayedCall(4800, doAdvance, [], this);
+  }
+
+  _onboardingShowReady() {
+    this._onboardingClearOverlay();
+    this.onboarding.step = 4;
+
+    const DEPTH = 1200;
+    const items = [];
+
+    // Full dark overlay blocks the game while the final card is up.
+    items.push(this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.72)
+      .setOrigin(0, 0).setDepth(DEPTH).setInteractive());
+
+    const panelW = 520;
+    const panelH = 270;
+    const px = (GAME_WIDTH - panelW) / 2;
+    const py = (GAME_HEIGHT - panelH) / 2;
+
+    items.push(this.add.rectangle(px, py, panelW, panelH, COLORS.surface, 1)
+      .setOrigin(0, 0).setStrokeStyle(1, COLORS.primary, 0.5).setDepth(DEPTH + 1));
+    items.push(this.add.rectangle(px, py, 3, panelH, COLORS.primary, 0.8)
+      .setOrigin(0, 0).setDepth(DEPTH + 2));
+    items.push(this.add.rectangle(px, py, panelW, 46, COLORS.primary, 0.1)
+      .setOrigin(0, 0).setDepth(DEPTH + 2));
+    items.push(this.add.text(px + 14, py + 13, 'ARE YOU READY?', {
+      fontFamily: FONTS.headline, fontSize: '18px', fontStyle: '800',
+      color: HEX.primary, letterSpacing: 4
+    }).setDepth(DEPTH + 3));
+    items.push(this.add.text(px + panelW - 14, py + 16, 'NO MORE TUTORIALS', {
+      fontFamily: FONTS.mono, fontSize: '10px', color: HEX.outline
+    }).setOrigin(1, 0).setDepth(DEPTH + 3));
+    items.push(this.add.rectangle(px + 14, py + 46, panelW - 28, 1, COLORS.primary, 0.2)
+      .setOrigin(0, 0).setDepth(DEPTH + 2));
+    items.push(this.add.text(px + 14, py + 62,
+      'You have processed three jobs.\n\n' +
+      'The shift will now proceed without guidance.\n' +
+      'The queue will grow. The meters will degrade.\n' +
+      'Management will form opinions about your behavior.\n\n' +
+      'Good luck. You will need it.',
+      {
+        fontFamily: FONTS.mono, fontSize: '13px', color: HEX.onSurfaceVar,
+        wordWrap: { width: panelW - 28 }, lineSpacing: 5
+      }).setDepth(DEPTH + 3));
+
+    const startBtn = createButton(this, {
+      x: px + (panelW - 220) / 2,
+      y: py + panelH - 14 - 46,
+      width: 220, height: 46,
+      label: 'START SHIFT',
+      initial: 'primary',
+      onClick: () => this._onboardingCleanup()
+    });
+    [startBtn.bg, startBtn.text].forEach(o => o.setDepth(DEPTH + 3));
+    items.push(startBtn.bg, startBtn.text);
+
+    this.onboarding.overlayItems = items;
+    this.onboarding.items.push(...items);
+  }
+
+  _onboardingCleanup() {
+    if (!this.onboarding) return;
+    this.onboarding.items.forEach(o => { try { o.destroy(); } catch {} });
+    this.onboarding = null;
+    if (this.tickTimer && !this.tutorial) this.tickTimer.paused = false;
+  }
+
+  // =========================================================================
   // Action consequence popup — shows meter deltas after every player choice
   // =========================================================================
   showConsequencePopup(actionKey, job, before) {
+    // Onboarding provides its own reaction — suppress the normal popup.
+    if (this.onboarding) return;
     // Cancel any toast queued from the previous popup before replacing it.
     this.pendingJobToast = null;
     this._destroyConsequencePopup();
@@ -1803,6 +2598,7 @@ export default class GameScene extends Phaser.Scene {
 
   _showPendingJobToast() {
     if (!this.pendingJobToast) return;
+    if (this.onboarding) return; // don't interrupt onboarding flow
     const job = this.pendingJobToast;
     this.pendingJobToast = null;
     this.showJobArrivalToast(job);
@@ -1853,7 +2649,11 @@ export default class GameScene extends Phaser.Scene {
 
     this.jobTitleText.setText(job.title);
     this.jobDescText.setText(job.description);
-    this.jobIdText.setText(`ID: ${formatJobId(job.id)}`);
+
+    // Cache the formatted ID on the job object — formatJobId involves a
+    // char-array allocation + reduce for an immutable value.
+    if (job._cachedId === undefined) job._cachedId = `ID: ${formatJobId(job.id)}`;
+    this.jobIdText.setText(job._cachedId);
 
     // Urgency mapping → badge label + color.
     const badgeInfo = urgencyBadge(job.urgency);
@@ -1861,8 +2661,9 @@ export default class GameScene extends Phaser.Scene {
     this.jobBadge.setBackgroundColor(cssHex(badgeInfo.bg));
     this.jobBadge.setColor(badgeInfo.fg);
 
-    // Risk bar: sum of absolute risk magnitudes, scaled.
-    const riskMag = riskMagnitude(job.risk);
+    // Cache riskMagnitude — Object.values allocation for an immutable value.
+    if (job._cachedRiskMag === undefined) job._cachedRiskMag = riskMagnitude(job.risk);
+    const riskMag = job._cachedRiskMag;
     const ratio = Math.max(0, Math.min(1, riskMag / 60));
     const cardW = LEFT_W - 28 - 20;
     this.riskBar.width = Math.max(4, cardW * ratio);
@@ -1918,22 +2719,24 @@ export default class GameScene extends Phaser.Scene {
   }
 
   refreshLog() {
-    const entries = this.state.log.slice().reverse();
-    for (let i = 0; i < (this.logLines?.length ?? 0); i++) {
-      const line = this.logLines[i];
-      const entry = entries[i];
-      const text = typeof entry === 'string' ? entry : (entry?.text ?? '');
-      const color = typeof entry === 'object' && entry?.color ? entry.color : LOG_DEFAULT;
+    // Iterate the log array from the tail so the most-recent entry maps to
+    // slot 0. No slice/reverse allocation needed.
+    const log   = this.state.log;
+    const count = this.logLines?.length ?? 0;
+    for (let i = 0; i < count; i++) {
+      const line  = this.logLines[i];
+      const entry = log[log.length - 1 - i];
 
-      if (!text) {
+      if (!entry) {
         line.setText('');
         continue;
       }
 
-      const prefix = /warning|critical|overload|fault|jam/i.test(text) ? '\u203A ' : '> ';
-      const budget = (this.logMaxChars ?? 104) - prefix.length;
-      const display = text.length > budget ? text.slice(0, budget - 1) + '\u2026' : text;
-      line.setText(prefix + display);
+      // Use the pre-computed display string written by log(); fall back
+      // gracefully for any legacy plain-string entries still in state.
+      const display = entry.display ?? (entry.text ? '> ' + entry.text : '');
+      const color   = entry.color ?? LOG_DEFAULT;
+      line.setText(display);
       line.setColor(color);
     }
   }

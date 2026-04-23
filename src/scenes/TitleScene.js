@@ -15,14 +15,18 @@ export default class TitleScene extends Phaser.Scene {
 
     this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, COLORS.surface).setOrigin(0, 0);
 
-    // Blueprint grid dots.
-    const grid = this.add.graphics();
-    grid.fillStyle(COLORS.outlineVar, 0.4);
+    // Blueprint grid dots — baked to a RenderTexture so the display list holds
+    // one textured quad instead of ~1 590 individual fillRect path commands.
+    const gridGfx = this.add.graphics();
+    gridGfx.fillStyle(COLORS.outlineVar, 0.4);
     for (let gx = 24; gx < GAME_WIDTH; gx += 24) {
       for (let gy = 24; gy < GAME_HEIGHT; gy += 24) {
-        grid.fillRect(gx, gy, 1, 1);
+        gridGfx.fillRect(gx, gy, 1, 1);
       }
     }
+    const gridRT = this.add.renderTexture(0, 0, GAME_WIDTH, GAME_HEIGHT).setOrigin(0, 0);
+    gridRT.draw(gridGfx);
+    gridGfx.destroy();
 
     // Top strip to mirror the game.
     this.add.rectangle(0, 0, GAME_WIDTH, 52, COLORS.surfaceDim, 0.92).setOrigin(0, 0);

@@ -1,8 +1,7 @@
-import Phaser from 'phaser';
-import BootScene from '../scenes/BootScene.js';
-import TitleScene from '../scenes/TitleScene.js';
-import GameScene from '../scenes/GameScene.js';
-import ResultsScene from '../scenes/ResultsScene.js';
+// Pure constants and tuning data only.
+// The Phaser game config (engine options + scene list) lives in main.js so
+// that config.js has no outgoing imports and the circular dependency
+// config.js → scenes → config.js is completely eliminated.
 
 export const GAME_WIDTH = 1280;
 export const GAME_HEIGHT = 720;
@@ -56,21 +55,3 @@ export function phaseFor(dayTime) {
   return 'earlyShift';
 }
 
-// --- Phaser config ---------------------------------------------------------
-
-export const gameConfig = {
-  type: Phaser.AUTO,
-  parent: 'game',
-  width: GAME_WIDTH,
-  height: GAME_HEIGHT,
-  backgroundColor: '#0a0a0a',
-  scale: {
-    mode: Phaser.Scale.FIT,
-    autoCenter: Phaser.Scale.CENTER_BOTH
-  },
-  render: {
-    pixelArt: false,
-    antialias: true
-  },
-  scene: [BootScene, TitleScene, GameScene, ResultsScene]
-};
