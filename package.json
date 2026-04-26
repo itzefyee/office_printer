@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "Office Printer 9K - a one-screen dark comedy browser management game built with Phaser 3.",
+  "description": "PC LOAD LETTER - a one-screen dark comedy browser management game built with Phaser 3.",
   "scripts": {
     "dev": "vite",
     "build": "vite build",

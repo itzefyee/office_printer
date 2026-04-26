@@ -290,17 +290,19 @@ export default class GameScene extends Phaser.Scene {
     this.add.rectangle(0, TOP_BAR_H, GAME_WIDTH, 1, COLORS.outlineVar, 0.5)
       .setOrigin(0, 0);
 
-    // Brand block.
-    this.add.text(MARGIN + 6, 18, 'OFFICE PRINTER 9K', {
-      fontFamily: FONTS.headline,
-      fontSize: '15px',
-      fontStyle: '700',
-      color: HEX.primary,
-      letterSpacing: 3
-    });
+    // Brand block (LCD font to match title screen).
+    this.add
+      .text(MARGIN + 6, 15, 'PC LOAD LETTER', {
+        fontFamily: FONTS.titleLcd,
+        fontSize: '22px',
+        color: HEX.lcdCyan,
+        letterSpacing: 2
+      })
+      .setShadow(0, 0, 'rgba(70, 200, 190, 0.5)', 6, true, true);
 
     // Three stat chips next to the brand: SYS_TIME / QUEUE / PROG.
-    const chipBaseX = MARGIN + 220;
+    // Brand uses large LCD type; start chips after the label so nothing overlaps.
+    const chipBaseX = MARGIN + 310;
     const chipGap = 90;
     this.topChips = {
       sysTime: this.makeTopChip(chipBaseX, 12, 'SYS_TIME', '00:00:00'),

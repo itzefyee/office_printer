@@ -1,4 +1,4 @@
-## Office Printer 9K — Audio attribution
+## PC LOAD LETTER — Audio attribution
 
 This folder contains the game’s sound effects.
 

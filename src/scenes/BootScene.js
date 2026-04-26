@@ -34,7 +34,9 @@ export default class BootScene extends Phaser.Scene {
       Promise.all([
         document.fonts.load('700 14px "Space Grotesk"'),
         document.fonts.load('400 14px "Inter"'),
-        document.fonts.load('500 14px "JetBrains Mono"')
+        document.fonts.load('500 14px "JetBrains Mono"'),
+        document.fonts.load('400 110px "Micro 5"'),
+        document.fonts.load('400 110px "VT323"')
       ]).then(proceed).catch(proceed);
     } else {
       proceed();

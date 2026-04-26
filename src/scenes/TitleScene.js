@@ -4,6 +4,50 @@ import { createButton } from '../ui/Button.js';
 import { playSfx, startBgm } from '../game/audio/sfx.js';
 import { COLORS, HEX, FONTS, drawGlassPanel } from '../ui/theme.js';
 
+/** Faux HP LaserJet–style LCD: plastic bezel, black glass, cyan dot-matrix text + VFD-style glow. */
+function addPrinterLcdTitle(scene, cx, yCenter) {
+  const lcdW = 1160;
+  const lcdH = 128;
+  const border = 3;
+  const x0 = cx - lcdW / 2;
+  const y0 = yCenter - lcdH / 2;
+  const bezel = scene.add
+    .rectangle(x0, y0, lcdW, lcdH, COLORS.lcdBezel, 1)
+    .setOrigin(0, 0);
+  const panel = scene.add
+    .rectangle(
+      x0 + border,
+      y0 + border,
+      lcdW - border * 2,
+      lcdH - border * 2,
+      COLORS.lcdPanel,
+      1
+    )
+    .setOrigin(0, 0);
+  panel.setStrokeStyle(1, 0x0c0a08, 0.85);
+
+  const lineStyle = {
+    fontFamily: FONTS.titleLcd,
+    fontSize: '110px',
+    color: HEX.lcdCyan,
+    letterSpacing: 4
+  };
+  const halation = scene.add
+    .text(cx, yCenter, 'PC LOAD LETTER', { ...lineStyle })
+    .setOrigin(0.5, 0.5);
+  halation.setAlpha(0.3);
+  halation.setScale(1.03);
+  halation.setShadow(0, 0, 'rgba(50, 200, 185, 0.95)', 32, true, true);
+
+  const main = scene.add
+    .text(cx, yCenter, 'PC LOAD LETTER', lineStyle)
+    .setOrigin(0.5, 0.5);
+  main.setShadow(0, 0, 'rgba(100, 255, 240, 0.85)', 22, true, true);
+
+  [bezel, panel, halation, main].forEach((o, i) => o.setDepth(5 + i));
+  return { bezel, panel, main };
+}
+
 export default class TitleScene extends Phaser.Scene {
   constructor() {
     super('TitleScene');
@@ -31,55 +75,42 @@ export default class TitleScene extends Phaser.Scene {
     // Top strip to mirror the game.
     this.add.rectangle(0, 0, GAME_WIDTH, 52, COLORS.surfaceDim, 0.92).setOrigin(0, 0);
     this.add.rectangle(0, 52, GAME_WIDTH, 1, COLORS.outlineVar, 0.5).setOrigin(0, 0);
-    this.add.text(24, 18, 'OFFICE PRINTER 9K // STANDBY', {
-      fontFamily: FONTS.headline,
-      fontSize: '14px',
-      fontStyle: '700',
-      color: HEX.primary,
-      letterSpacing: 3
-    });
+    this.add
+      .text(24, 15, 'PC LOAD LETTER // STANDBY', {
+        fontFamily: FONTS.titleLcd,
+        fontSize: '22px',
+        color: HEX.lcdCyan,
+        letterSpacing: 2
+      })
+      .setShadow(0, 0, 'rgba(70, 200, 190, 0.5)', 5, true, true);
     this.add.circle(14, 26, 3, COLORS.secondary);
 
-    // Title plate.
-    this.add.text(cx, 180, 'OFFICE', {
-      fontFamily: FONTS.headline,
-      fontSize: '72px',
-      fontStyle: '800',
-      color: HEX.onSurface,
-      letterSpacing: 4
-    }).setOrigin(0.5, 0.5);
-
-    this.add.text(cx, 250, 'PRINTER 9K', {
-      fontFamily: FONTS.headline,
-      fontSize: '96px',
-      fontStyle: '800',
-      color: HEX.primary,
-      letterSpacing: 6
-    }).setOrigin(0.5, 0.5);
+    // Main readout: printer-style LCD (dot-matrix font, cyan on black glass).
+    addPrinterLcdTitle(this, cx, 208);
 
     // Framed tagline panel.
     const panelW = 560;
     const panelH = 110;
     drawGlassPanel(this, cx - panelW / 2, 320, panelW, panelH);
 
-    this.add.text(cx, 348, 'DIAGNOSTIC_MODE', {
+    this.add.text(cx, 350, 'DIAGNOSTIC_MODE', {
       fontFamily: FONTS.headline,
-      fontSize: '10px',
+      fontSize: '9px',
       fontStyle: '700',
       color: HEX.primaryDim,
       letterSpacing: 3
     }).setOrigin(0.5, 0.5);
 
-    this.add.text(cx, 376, 'A management simulation of quiet corporate despair.', {
+    this.add.text(cx, 374, 'A management simulation of quiet corporate despair.', {
       fontFamily: FONTS.body,
-      fontSize: '14px',
+      fontSize: '12px',
       fontStyle: '400',
       color: HEX.onSurface
     }).setOrigin(0.5, 0.5);
 
-    this.add.text(cx, 404, 'The printer has been informed it will be evaluated.', {
+    this.add.text(cx, 400, 'The printer has been informed it will be evaluated.', {
       fontFamily: FONTS.body,
-      fontSize: '11px',
+      fontSize: '10px',
       fontStyle: 'italic',
       color: HEX.onSurfaceVar
     }).setOrigin(0.5, 0.5);

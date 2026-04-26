@@ -1,4 +1,4 @@
-# Office Printer 9K
+# PC LOAD LETTER
 
 A one-screen dark comedy browser management game built with Phaser 3 and Vite.
 You are a sentient office printer. Your coworkers are the hazard.

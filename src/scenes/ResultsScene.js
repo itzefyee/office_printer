@@ -46,13 +46,14 @@ export default class ResultsScene extends Phaser.Scene {
     // Top strip.
     this.add.rectangle(0, 0, GAME_WIDTH, 52, COLORS.surfaceDim, 0.92).setOrigin(0, 0);
     this.add.rectangle(0, 52, GAME_WIDTH, 1, COLORS.outlineVar, 0.5).setOrigin(0, 0);
-    this.add.text(24, 18, 'OFFICE PRINTER 9K // SHIFT CONCLUDED', {
-      fontFamily: FONTS.headline,
-      fontSize: '14px',
-      fontStyle: '700',
-      color: HEX.primary,
-      letterSpacing: 3
-    });
+    this.add
+      .text(22, 15, 'PC LOAD LETTER // SHIFT CONCLUDED', {
+        fontFamily: FONTS.titleLcd,
+        fontSize: '24px',
+        color: HEX.lcdCyan,
+        letterSpacing: 2
+      })
+      .setShadow(0, 0, 'rgba(70, 200, 190, 0.5)', 6, true, true);
     this.add.circle(14, 26, 3, COLORS.error);
 
     // Headline block.

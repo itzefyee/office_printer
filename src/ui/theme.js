@@ -1,4 +1,4 @@
-// HMI-style palette and typography tokens for Office Printer 9K.
+// HMI-style palette and typography tokens for PC LOAD LETTER.
 // Colors come in two flavors because Phaser needs 0xRRGGBB for shapes
 // and '#rrggbb' strings for text fills.
 
@@ -29,7 +29,11 @@ export const COLORS = {
   secondary:      0x82db7e,
   secondaryDeep:  0x006619,
 
-  warn:           0xffb300
+  warn:           0xffb300,
+
+  // Title screen: HP-style LCD window (beige frame, black glass).
+  lcdBezel:       0x3d3830,
+  lcdPanel:       0x020201
 };
 
 export const HEX = {
@@ -46,13 +50,18 @@ export const HEX = {
   secondaryDim:  '#4a8047',
   warn:          '#ffb300',
   muted:         '#5a5242',
-  ink:           '#0a0a0a'
+  ink:           '#0a0a0a',
+  // Vintage printer LCD: cyan on black (5×7 / dot-matrix feel).
+  lcdCyan:       '#5af0e5',
+  lcdCyanDim:    '#1a4a45'
 };
 
 export const FONTS = {
   headline: 'Space Grotesk, sans-serif',
   body:     'Inter, sans-serif',
-  mono:     'JetBrains Mono, ui-monospace, monospace'
+  mono:     'JetBrains Mono, ui-monospace, monospace',
+  // Micro 5 = dot-grid look; VT323 = readable VFD fallback.
+  titleLcd: '"Micro 5", "VT323", ui-monospace, monospace'
 };
 
 // Glass panel helper. Adds a translucent dark fill with a warm-tan border
