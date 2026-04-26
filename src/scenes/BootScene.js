@@ -15,9 +15,15 @@ export default class BootScene extends Phaser.Scene {
       this.load.audio(a.key, a.url);
     });
 
-    // Avoid blocking scene boot on missing audio files.
-    // The game should remain playable even when audio assets haven't been dropped in yet.
-    this.load.on('loaderror', () => {});
+    // Surface any failed asset loads to the console so missing/broken audio
+    // is diagnosable, while still keeping the game playable when files are absent.
+    this.load.on('loaderror', (file) => {
+      console.warn(`[BootScene] asset failed to load: ${file?.key} (${file?.url ?? file?.src ?? 'unknown url'})`);
+    });
+
+    this.load.on('filecomplete', (key, type) => {
+      if (type === 'audio') console.log(`[BootScene] audio loaded: ${key}`);
+    });
   }
 
   create() {

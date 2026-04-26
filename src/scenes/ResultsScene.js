@@ -3,7 +3,7 @@ import { GAME_WIDTH, GAME_HEIGHT, PHASE_LABELS } from '../game/config.js';
 import { endings, pickFrom } from '../game/data/flavor.js';
 import { METERS, getMeter } from '../game/data/meters.js';
 import { createButton } from '../ui/Button.js';
-import { playSfx, stopHum } from '../game/audio/sfx.js';
+import { playSfx, stopBgm } from '../game/audio/sfx.js';
 import { COLORS, HEX, FONTS, drawGlassPanel, drawPanelHeader } from '../ui/theme.js';
 
 export default class ResultsScene extends Phaser.Scene {
@@ -26,7 +26,7 @@ export default class ResultsScene extends Phaser.Scene {
       memos: ['The office has nothing further to add.']
     };
 
-    stopHum(this);
+    stopBgm(this);
     if (this.endingId === 'shift_complete') {
       playSfx(this, 'endingWin', { cooldownMs: 0 });
     } else {

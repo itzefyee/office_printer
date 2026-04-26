@@ -1,5 +1,5 @@
 export const AUDIO = {
-  hum:         { key: 'hum',         url: 'audio/hum_loop.ogg',     volume: 0.22, loop: true },
+  bgm:         { key: 'bgm',         url: 'audio/bgm_toner_room.mp3', volume: 0.45, loop: true },
   uiClick:     { key: 'uiClick',     url: 'audio/ui_click.ogg',     volume: 0.55, loop: false },
   uiConfirm:   { key: 'uiConfirm',   url: 'audio/ui_confirm.ogg',   volume: 0.65, loop: false },
   uiError:     { key: 'uiError',     url: 'audio/ui_error.ogg',     volume: 0.70, loop: false },

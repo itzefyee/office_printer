@@ -31,7 +31,7 @@ import {
   managerEscalationLines,
   pickFrom
 } from '../game/data/flavor.js';
-import { playSfx, startHum } from '../game/audio/sfx.js';
+import { playSfx, startBgm } from '../game/audio/sfx.js';
 import { createButton } from '../ui/Button.js';
 import {
   COLORS,
@@ -150,9 +150,9 @@ export default class GameScene extends Phaser.Scene {
     this.pendingJobToast = null;
     this.onboarding = null;
 
-    // Ensure the ambient hum is running whenever the main dashboard is active.
+    // Ensure the BGM is running whenever the main dashboard is active.
     // If audio is still locked by the browser, this will no-op until unlocked.
-    startHum(this);
+    startBgm(this);
 
     const modifier = pickModifier();
     this.state.modifier = modifier;

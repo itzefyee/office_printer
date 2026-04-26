@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { GAME_WIDTH, GAME_HEIGHT } from '../game/config.js';
 import { createButton } from '../ui/Button.js';
-import { playSfx, startHum } from '../game/audio/sfx.js';
+import { playSfx, startBgm } from '../game/audio/sfx.js';
 import { COLORS, HEX, FONTS, drawGlassPanel } from '../ui/theme.js';
 
 export default class TitleScene extends Phaser.Scene {
@@ -111,7 +111,7 @@ export default class TitleScene extends Phaser.Scene {
       fontSize: '12px',
       onClick: () => {
         playSfx(this, 'uiConfirm', { cooldownMs: 0 });
-        startHum(this);
+        startBgm(this);
         this.scene.start('GameScene');
       }
     });

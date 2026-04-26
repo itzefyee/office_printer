@@ -1,7 +1,7 @@
 import { AUDIO } from './audioKeys.js';
 
 const lastPlayedAt = new Map();
-let humSound = null;
+let bgmSound = null;
 
 function nowMs(scene) {
   if (scene?.time?.now !== undefined) return scene.time.now;
@@ -70,44 +70,53 @@ export function playSfx(scene, audioKey, opts = {}) {
   }
 }
 
-export function startHum(scene) {
-  const def = AUDIO.hum;
-  if (!def) return null;
-  if (!canPlay(scene)) return null;
-  if (!hasAudioKey(scene, def.key)) return null;
+export function startBgm(scene) {
+  const def = AUDIO.bgm;
+  if (!def) {
+    console.warn('[startBgm] no AUDIO.bgm definition');
+    return null;
+  }
+  if (!canPlay(scene)) {
+    console.warn('[startBgm] cannot play — manager mute or still locked');
+    return null;
+  }
+  if (!hasAudioKey(scene, def.key)) {
+    console.warn(`[startBgm] audio key not in cache: ${def.key} (was the file loaded?)`);
+    return null;
+  }
 
-  // The SoundManager is shared across scenes. Keep a single hum instance alive
+  // The SoundManager is shared across scenes. Keep a single bgm instance alive
   // to avoid stacking loops during rapid restarts.
-  if (humSound && humSound.isPlaying) return humSound;
+  if (bgmSound && bgmSound.isPlaying) return bgmSound;
 
   try {
-    // If a previous instance exists but isn't playing, destroy it before recreating.
-    if (humSound) {
-      try { humSound.stop(); } catch {}
-      try { humSound.destroy(); } catch {}
-      humSound = null;
+    if (bgmSound) {
+      try { bgmSound.stop(); } catch {}
+      try { bgmSound.destroy(); } catch {}
+      bgmSound = null;
     }
 
-    humSound = scene.sound.add(def.key, { loop: true, volume: def.volume ?? 0.2 });
-    humSound.play();
-    return humSound;
-  } catch {
+    bgmSound = scene.sound.add(def.key, { loop: true, volume: def.volume ?? 0.4 });
+    bgmSound.play();
+    console.log('[startBgm] playing');
+    return bgmSound;
+  } catch (err) {
+    console.warn('[startBgm] play() threw:', err);
     return null;
   }
 }
 
-export function stopHum(scene) {
-  const def = AUDIO.hum;
+export function stopBgm(scene) {
+  const def = AUDIO.bgm;
   if (!def) return;
   try {
-    // Stop/destroy our tracked instance…
-    if (humSound) {
-      try { humSound.stop(); } catch {}
-      try { humSound.destroy(); } catch {}
-      humSound = null;
+    if (bgmSound) {
+      try { bgmSound.stop(); } catch {}
+      try { bgmSound.destroy(); } catch {}
+      bgmSound = null;
     }
 
-    // …and also defensively stop any other hum instances that might have been created.
+    // Defensively stop any other bgm instances that might have been created.
     const manager = scene?.sound;
     const list = manager?.sounds ?? [];
     list.forEach(s => {
