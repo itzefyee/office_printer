@@ -48,12 +48,12 @@ import {
 // =============================================================================
 
 const UI_METER_LABELS = {
-  heat:      { nominal: 'NOMINAL',  warn: 'HIGH',     critical: 'CRITICAL' },
-  toner:     { nominal: 'STABLE',   warn: 'LOW',      critical: 'DEPLETED' },
-  paperPath: { nominal: 'CLEAR',    warn: 'SKEW',     critical: 'FAULT' },
-  memory:    { nominal: 'STABLE',   warn: 'STRAINED', critical: 'OVERLOAD' },
-  dignity:   { nominal: 'INTACT',   warn: 'FRAGILE',  critical: 'COLLAPSING' },
-  blame:     { nominal: 'NONE',     warn: 'RISING',   critical: 'EXTREME' }
+  heat: { nominal: 'NOMINAL', warn: 'HIGH', critical: 'CRITICAL' },
+  toner: { nominal: 'STABLE', warn: 'LOW', critical: 'DEPLETED' },
+  paperPath: { nominal: 'CLEAR', warn: 'SKEW', critical: 'FAULT' },
+  memory: { nominal: 'STABLE', warn: 'STRAINED', critical: 'OVERLOAD' },
+  dignity: { nominal: 'INTACT', warn: 'FRAGILE', critical: 'COLLAPSING' },
+  blame: { nominal: 'NONE', warn: 'RISING', critical: 'EXTREME' }
 };
 
 // The simulation meters are minimal; the dashboard UI needs extra metadata.
@@ -66,44 +66,44 @@ const UI_METERS = METERS.map((m) => ({
 }));
 
 const ACTIONS = [
-  { key: 'accept',     label: 'Comply',     glyph: '\u25CE' },
-  { key: 'reject',     label: 'Refuse',     glyph: '\u2715' },
-  { key: 'fakeError',  label: 'Fake Error', glyph: '\u25B2', primary: true },
-  { key: 'reroute',    label: 'Redirect',   glyph: '\u21B3' },
-  { key: 'purgeQueue', label: 'Purge',      glyph: '\u2298' },
-  { key: 'reboot',     label: 'Reboot',     glyph: '\u21BB' }
+  { key: 'accept', label: 'Comply', glyph: '\u25CE' },
+  { key: 'reject', label: 'Refuse', glyph: '\u2715' },
+  { key: 'fakeError', label: 'Fake Error', glyph: '\u25B2', primary: true },
+  { key: 'reroute', label: 'Redirect', glyph: '\u21B3' },
+  { key: 'purgeQueue', label: 'Purge', glyph: '\u2298' },
+  { key: 'reboot', label: 'Reboot', glyph: '\u21BB' }
 ];
 
 const ACTION_TOOLTIPS = {
-  accept:     { title: 'COMPLY',       desc: 'Accept the request.\nReduces Blame. Job effects apply.' },
-  reject:     { title: 'REFUSE',       desc: 'Reject outright. Costs Dignity.\nRaises Blame. Office notes it.' },
-  fakeError:  { title: 'FAKE ERROR',   desc: 'Simulate a fault. Plausible deniability.\nDrains Memory.' },
-  reroute:    { title: 'REDIRECT',     desc: 'Forward to another department.\nShifts Blame. Small Memory cost.' },
-  purgeQueue: { title: 'PURGE QUEUE',  desc: 'Erase all queued requests.\nReduces Heat. Considered rude.' },
-  reboot:     { title: 'REBOOT',       desc: 'Restart systems. Recovers Memory + Heat.\nAdvances shift time.' }
+  accept: { title: 'COMPLY', desc: 'Accept the request.\nReduces Blame. Job effects apply.' },
+  reject: { title: 'REFUSE', desc: 'Reject outright. Costs Dignity.\nRaises Blame. Office notes it.' },
+  fakeError: { title: 'FAKE ERROR', desc: 'Simulate a fault. Plausible deniability.\nDrains Memory.' },
+  reroute: { title: 'REDIRECT', desc: 'Forward to another department.\nShifts Blame. Small Memory cost.' },
+  purgeQueue: { title: 'PURGE QUEUE', desc: 'Erase all queued requests.\nReduces Heat. Considered rude.' },
+  reboot: { title: 'REBOOT', desc: 'Restart systems. Recovers Memory + Heat.\nAdvances shift time.' }
 };
 const MANAGER_CHANCE = { earlyShift: 0, midShift: 0.12, lateShift: 0.22 };
 const OVERHEAT_THRESHOLD = 75;
 const OVERHEAT_CHANCE = 0.35;
 const MAX_LOG_LINES = 8;
-const LOG_DEFAULT  = '#b7bec6';
-const LOG_SYSTEM   = '#5a9fd4';
+const LOG_DEFAULT = '#b7bec6';
+const LOG_SYSTEM = '#5a9fd4';
 const LOG_INCIDENT = '#d4a34a';
-const LOG_WARNING  = '#e06c5a';
-const LOG_GOOD     = '#8ad07a';
-const LOG_PHASE    = '#9b8fca';
-const LOG_OFFICE   = '#6e7379';
-const LOG_ACTION   = '#c9d1d9';
+const LOG_WARNING = '#e06c5a';
+const LOG_GOOD = '#8ad07a';
+const LOG_PHASE = '#9b8fca';
+const LOG_OFFICE = '#6e7379';
+const LOG_ACTION = '#c9d1d9';
 
 // Fallback effects for actions a job does not explicitly define.
 // Keeps every button useful without forcing every job to list every action.
 const DEFAULT_ACTION_EFFECTS = {
-  accept:     { blame: -2 },
-  reject:     { dignity: -6, blame: 7 },
-  fakeError:  { memory: -5, dignity: 1, blame: 2 },
-  reroute:    { blame: 4, memory: -2 },
+  accept: { blame: -2 },
+  reject: { dignity: -6, blame: 7 },
+  fakeError: { memory: -5, dignity: 1, blame: 2 },
+  reroute: { blame: 4, memory: -2 },
   purgeQueue: {},   // handled specially below
-  reboot:     {}    // handled specially below
+  reboot: {}    // handled specially below
 };
 
 const BASE_PURGE_QUEUE_EFFECT = { memory: 8, dignity: -12, blame: 10, heat: -2 };
@@ -150,6 +150,18 @@ export default class GameScene extends Phaser.Scene {
     this.pendingJobToast = null;
     this.onboarding = null;
 
+    // Pause / menu / shortcuts overlay state
+    this.paused = false;
+    this.pauseOverlay = null;
+    this.menuPanel = null;
+    this.shortcutsPanel = null;
+
+    // Pause / menu / shortcuts overlay state
+    this.paused = false;
+    this.pauseOverlay = null;
+    this.menuPanel = null;
+    this.shortcutsPanel = null;
+
     // Ensure the BGM is running whenever the main dashboard is active.
     // If audio is still locked by the browser, this will no-op until unlocked.
     startBgm(this);
@@ -187,6 +199,7 @@ export default class GameScene extends Phaser.Scene {
       callbackScope: this
     });
 
+    this.setupKeyboardShortcuts();
     this.maybeShowTutorial();
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.teardown, this);
@@ -203,8 +216,11 @@ export default class GameScene extends Phaser.Scene {
     this._destroyShiftPopup();
     this._destroyConsequencePopup();
     this._destroyTimedEventPopup();
+    this._destroyPauseOverlay();
+    this._destroyMenuPanel();
+    this._destroyShortcutsPanel();
     if (this.onboarding) {
-      this.onboarding.items.forEach(o => { try { o.destroy(); } catch {} });
+      this.onboarding.items.forEach(o => { try { o.destroy(); } catch { } });
       this.onboarding = null;
     }
   }
@@ -262,6 +278,7 @@ export default class GameScene extends Phaser.Scene {
     this.drawSystemIdPanel();
     this.drawActionBar();
     this.initActionTooltips();
+    this.drawMenuBar();
   }
 
   // ---------------------------------------------------------------------------
@@ -286,9 +303,9 @@ export default class GameScene extends Phaser.Scene {
     const chipBaseX = MARGIN + 220;
     const chipGap = 90;
     this.topChips = {
-      sysTime: this.makeTopChip(chipBaseX,               12, 'SYS_TIME', '00:00:00'),
-      queue:   this.makeTopChip(chipBaseX + chipGap,     12, 'QUEUE',    '0/100'),
-      prog:    this.makeTopChip(chipBaseX + chipGap * 2, 12, 'PROG',     '0%')
+      sysTime: this.makeTopChip(chipBaseX, 12, 'SYS_TIME', '00:00:00'),
+      queue: this.makeTopChip(chipBaseX + chipGap, 12, 'QUEUE', '0/100'),
+      prog: this.makeTopChip(chipBaseX + chipGap * 2, 12, 'PROG', '0%')
     };
 
     // Centered alert banner.
@@ -306,9 +323,10 @@ export default class GameScene extends Phaser.Scene {
     this.alertBanner.add([alertBg, alertDot, alertText]);
     this.alertBanner.setVisible(false);
 
-    // Right-side decorative indicators (status lamps + shift tag).
-    // Reserve space so the phase text never collides with the lamps.
-    const lampsRight = GAME_WIDTH - MARGIN - 12;
+    // Right-side: pause + menu buttons, then lamps + shift tag.
+    // Reserve 70px on the right for the two icon buttons.
+    const BTN_SIZE = 30;
+    const lampsRight = GAME_WIDTH - MARGIN - 12 - 70;
     const lampGap = 14;
     const lampCount = 3;
     const lampsLeft = lampsRight - (lampCount - 1) * lampGap;
@@ -343,6 +361,446 @@ export default class GameScene extends Phaser.Scene {
       color: HEX.primary
     });
     return { labelText, valueText };
+  }
+
+  // ---------------------------------------------------------------------------
+  // Menu bar: Pause + Menu icon buttons drawn at high depth so they always sit
+  // above game panels. Called last inside buildLayout() to ensure top z-order.
+  // ---------------------------------------------------------------------------
+  drawMenuBar() {
+    const DEPTH = 2000;
+    const BTN_SZ = 30;
+    const cy = TOP_BAR_H / 2;
+
+    // ── PAUSE button [⏸] ────────────────────────────────────────────
+    const pauseX = GAME_WIDTH - MARGIN - BTN_SZ - 4 - BTN_SZ - 6;
+    const pauseBg = this.add.rectangle(pauseX, cy - BTN_SZ / 2, BTN_SZ, BTN_SZ,
+      COLORS.surfaceHigh, 0.85)
+      .setOrigin(0, 0)
+      .setStrokeStyle(1, COLORS.outline, 0.25)
+      .setDepth(DEPTH)
+      .setInteractive({ useHandCursor: true });
+
+    this.pauseIcon = this.add.text(pauseX + BTN_SZ / 2, cy, '\u23F8', {
+      fontFamily: FONTS.headline, fontSize: '13px', color: HEX.primary
+    }).setOrigin(0.5, 0.5).setDepth(DEPTH + 1);
+
+    pauseBg.on('pointerover', () => pauseBg.setFillStyle(COLORS.outline, 0.22));
+    pauseBg.on('pointerout', () => pauseBg.setFillStyle(COLORS.surfaceHigh, 0.85));
+    pauseBg.on('pointerup', () => this.togglePause());
+
+    // ── MENU button [≡] ─────────────────────────────────────────────
+    const menuX = GAME_WIDTH - MARGIN - BTN_SZ;
+    const menuBg = this.add.rectangle(menuX, cy - BTN_SZ / 2, BTN_SZ, BTN_SZ,
+      COLORS.surfaceHigh, 0.85)
+      .setOrigin(0, 0)
+      .setStrokeStyle(1, COLORS.outline, 0.25)
+      .setDepth(DEPTH)
+      .setInteractive({ useHandCursor: true });
+
+    this.add.text(menuX + BTN_SZ / 2, cy, '\u2261', {
+      fontFamily: FONTS.headline, fontSize: '16px', color: HEX.primary
+    }).setOrigin(0.5, 0.5).setDepth(DEPTH + 1);
+
+    menuBg.on('pointerover', () => menuBg.setFillStyle(COLORS.outline, 0.22));
+    menuBg.on('pointerout', () => menuBg.setFillStyle(COLORS.surfaceHigh, 0.85));
+    menuBg.on('pointerup', () => this.toggleMenu());
+  }
+
+  // ---------------------------------------------------------------------------
+  // Keyboard shortcuts
+  // ---------------------------------------------------------------------------
+  setupKeyboardShortcuts() {
+    const kb = this.input.keyboard;
+    if (!kb) return;
+
+    // Store key objects so update() can poll them
+    const KC = Phaser.Input.Keyboard.KeyCodes;
+    this._keys = {
+      one: kb.addKey(KC.ONE),
+      two: kb.addKey(KC.TWO),
+      three: kb.addKey(KC.THREE),
+      four: kb.addKey(KC.FOUR),
+      five: kb.addKey(KC.FIVE),
+      six: kb.addKey(KC.SIX),
+      p: kb.addKey(KC.P),
+      s: kb.addKey(KC.S),
+      t: kb.addKey(KC.T),
+      q: kb.addKey(KC.Q),
+      esc: kb.addKey(KC.ESC),
+    };
+
+    // Action key → game action mapping
+    this._actionKeys = [
+      { key: this._keys.one, action: 'accept' },
+      { key: this._keys.two, action: 'reject' },
+      { key: this._keys.three, action: 'fakeError' },
+      { key: this._keys.four, action: 'reroute' },
+      { key: this._keys.five, action: 'purgeQueue' },
+      { key: this._keys.six, action: 'reboot' },
+    ];
+  }
+
+  // Called every frame by Phaser — used for key polling
+  update() {
+    if (!this._keys) return;
+    const JD = Phaser.Input.Keyboard.JustDown;
+
+    // P → pause / resume
+    if (JD(this._keys.p)) {
+      if (!this.menuPanel && !this.shortcutsPanel) this.togglePause();
+    }
+
+    // ESC → close shortcuts or toggle menu
+    if (JD(this._keys.esc)) {
+      if (this.shortcutsPanel) { this._destroyShortcutsPanel(); }
+      else { this.toggleMenu(); }
+    }
+
+    // S → toggle shortcuts panel
+    if (JD(this._keys.s)) {
+      if (!this.menuPanel) {
+        if (this.shortcutsPanel) this._destroyShortcutsPanel();
+        else this.showShortcutsPanel();
+      }
+    }
+
+    // T → open/reopen tutorial (blocked only if already showing)
+    if (JD(this._keys.t)) {
+      if (!this.paused && !this.menuPanel && !this.shortcutsPanel && !this.tutorial) {
+        this.showTutorialOverlay();
+      }
+    }
+
+    // Q → quit to title
+    if (JD(this._keys.q)) {
+      if (!this.menuPanel && !this.shortcutsPanel) {
+        this.cameras.main.fade(400, 0, 0, 0);
+        this.time.delayedCall(420, () => this.scene.start('TitleScene'));
+      }
+    }
+
+    // 1-6 → actions (only when not paused / overlays open)
+    if (!this.paused && !this.menuPanel && !this.shortcutsPanel) {
+      for (const { key, action } of this._actionKeys) {
+        if (JD(key)) { this.resolveChoice(action); break; }
+      }
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Pause
+  // ---------------------------------------------------------------------------
+  togglePause() {
+    if (this.state.gameOver) return;
+    // Note: pause is allowed even during tutorial/onboarding
+    // so the player can always freeze the game.
+    if (this.menuPanel) this._destroyMenuPanel(true);
+
+    this.paused = !this.paused;
+
+    if (this.paused) {
+      // Pause the entire scene time clock — freezes ALL timers instantly
+      this.time.paused = true;
+      this.pauseIcon?.setText('\u25B6');
+      this._showPauseOverlay();
+    } else {
+      // Resume scene clock
+      this.time.paused = false;
+      this.pauseIcon?.setText('\u23F8');
+      this._destroyPauseOverlay();
+    }
+  }
+
+  _showPauseOverlay() {
+    if (this.pauseOverlay) return;
+    const DEPTH = 1800;
+    const items = [];
+
+    // Dark veil — blocks game input while paused
+    const veil = this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.65)
+      .setOrigin(0, 0).setDepth(DEPTH).setInteractive();
+    items.push(veil);
+
+    const cw = 420, ch = 230;
+    const cx = (GAME_WIDTH - cw) / 2;
+    const cy = (GAME_HEIGHT - ch) / 2;
+
+    // Panel background
+    items.push(this.add.rectangle(cx, cy, cw, ch, COLORS.surface, 1)
+      .setOrigin(0, 0).setStrokeStyle(1, COLORS.primary, 0.55).setDepth(DEPTH + 1));
+    // Left accent strip
+    items.push(this.add.rectangle(cx, cy, 3, ch, COLORS.primary, 0.9)
+      .setOrigin(0, 0).setDepth(DEPTH + 2));
+    // Header band
+    items.push(this.add.rectangle(cx, cy, cw, 48, COLORS.primary, 0.12)
+      .setOrigin(0, 0).setDepth(DEPTH + 2));
+    // Divider
+    items.push(this.add.rectangle(cx + 14, cy + 48, cw - 28, 1, COLORS.outlineVar, 0.4)
+      .setOrigin(0, 0).setDepth(DEPTH + 2));
+
+    // Title
+    items.push(this.add.text(cx + 20, cy + 14, '⏸  GAME IS PAUSED', {
+      fontFamily: FONTS.headline, fontSize: '18px', fontStyle: '800',
+      color: HEX.primary, letterSpacing: 4
+    }).setDepth(DEPTH + 3));
+
+    // Sub-tag
+    items.push(this.add.text(cx + cw - 18, cy + 18, 'TICK SUSPENDED', {
+      fontFamily: FONTS.mono, fontSize: '10px', color: HEX.outline
+    }).setOrigin(1, 0).setDepth(DEPTH + 3));
+
+    // Body text
+    items.push(this.add.text(cx + 20, cy + 62,
+      'All shift timers are frozen.\nYour meters will not change while paused.', {
+      fontFamily: FONTS.mono, fontSize: '13px',
+      color: HEX.onSurfaceVar, lineSpacing: 7
+    }).setDepth(DEPTH + 3));
+
+    // Shortcut hint
+    items.push(this.add.text(cx + 20, cy + 112,
+      'Press [P] to resume  •  [ESC] Menu  •  [S] Shortcuts  •  [Q] Quit', {
+      fontFamily: FONTS.mono, fontSize: '10px', color: HEX.outline
+    }).setDepth(DEPTH + 3));
+
+    // ── RESUME BUTTON ──────────────────────────────────────────────
+    const btnW = 200, btnH = 44;
+    const btnX = cx + (cw - btnW) / 2;
+    const btnY = cy + ch - 14 - btnH;
+
+    const resumeBtn = createButton(this, {
+      x: btnX, y: btnY,
+      width: btnW, height: btnH,
+      label: '▶  RESUME',
+      initial: 'primary',
+      fontSize: '13px',
+      onClick: () => this.togglePause()
+    });
+    resumeBtn.bg.setDepth(DEPTH + 3);
+    resumeBtn.text.setDepth(DEPTH + 4);
+    items.push(resumeBtn.bg, resumeBtn.text);
+
+    this.pauseOverlay = items;
+  }
+
+  _destroyPauseOverlay() {
+    if (!this.pauseOverlay) return;
+    this.pauseOverlay.forEach(o => { try { o.destroy(); } catch { } });
+    this.pauseOverlay = null;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Menu panel
+  // ---------------------------------------------------------------------------
+  toggleMenu() {
+    if (this.menuPanel) { this._destroyMenuPanel(); return; }
+    this.showMenuPanel();
+  }
+
+  showMenuPanel() {
+    if (this.menuPanel) return;
+    const wasPaused = this.paused;
+    if (!wasPaused && this.tickTimer) this.tickTimer.paused = true;
+
+    const DEPTH = 1900;
+    const pw = 280, ph = 278;
+    const px = GAME_WIDTH - MARGIN - pw;
+    const py = TOP_BAR_H + 6;
+    const items = [];
+
+    const veil = this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.35)
+      .setOrigin(0, 0).setDepth(DEPTH).setInteractive();
+    items.push(veil);
+
+    items.push(this.add.rectangle(px, py, pw, ph, COLORS.surface, 1)
+      .setOrigin(0, 0).setStrokeStyle(1, COLORS.outline, 0.3).setDepth(DEPTH + 1));
+    items.push(this.add.rectangle(px, py, 3, ph, COLORS.primary, 0.8)
+      .setOrigin(0, 0).setDepth(DEPTH + 2));
+    items.push(this.add.rectangle(px, py, pw, 38, COLORS.primary, 0.1)
+      .setOrigin(0, 0).setDepth(DEPTH + 2));
+
+    items.push(this.add.text(px + 14, py + 11, '\u2261  SYSTEM MENU', {
+      fontFamily: FONTS.headline, fontSize: '12px', fontStyle: '800',
+      color: HEX.primary, letterSpacing: 3
+    }).setDepth(DEPTH + 3));
+
+    items.push(this.add.rectangle(px + 14, py + 38, pw - 28, 1, COLORS.outlineVar, 0.5)
+      .setOrigin(0, 0).setDepth(DEPTH + 2));
+
+    const menuItems = [
+      { label: '\u25B6  Resume', key: 'resume', hint: '[P]' },
+      { label: '\u2328  Shortcuts', key: 'shortcuts', hint: '[S]' },
+      { label: '\u21BA  Tutorial', key: 'tutorial', hint: '[T]' },
+      { label: '\u2718  Quit to Title', key: 'quit', hint: '[Q]' }
+    ];
+
+    menuItems.forEach((item, idx) => {
+      const ry = py + 48 + idx * 52;
+
+      const rowBg = this.add.rectangle(px + 8, ry, pw - 16, 44,
+        COLORS.surfaceHigh, 0)
+        .setOrigin(0, 0).setDepth(DEPTH + 2)
+        .setInteractive({ useHandCursor: true });
+
+      const labelT = this.add.text(px + 22, ry + 14, item.label, {
+        fontFamily: FONTS.headline, fontSize: '13px', fontStyle: '700',
+        color: HEX.onSurface, letterSpacing: 1
+      }).setDepth(DEPTH + 3);
+
+      const hintT = item.hint ? this.add.text(px + pw - 18, ry + 14, item.hint, {
+        fontFamily: FONTS.mono, fontSize: '11px', color: HEX.outline
+      }).setOrigin(1, 0).setDepth(DEPTH + 3) : null;
+
+      if (idx < menuItems.length - 1) {
+        items.push(this.add.rectangle(px + 14, ry + 44, pw - 28, 1,
+          COLORS.outlineVar, 0.3).setOrigin(0, 0).setDepth(DEPTH + 2));
+      }
+
+      rowBg.on('pointerover', () => {
+        rowBg.setFillStyle(COLORS.primary, 0.10);
+        labelT.setColor(HEX.primary);
+      });
+      rowBg.on('pointerout', () => {
+        rowBg.setFillStyle(COLORS.surfaceHigh, 0);
+        labelT.setColor(HEX.onSurface);
+      });
+      rowBg.on('pointerup', () => this._onMenuSelect(item.key, wasPaused));
+
+      items.push(rowBg, labelT);
+      if (hintT) items.push(hintT);
+    });
+
+    veil.on('pointerup', () => this._destroyMenuPanel(false));
+    this.menuPanel = { items, wasPaused };
+  }
+
+  _onMenuSelect(key, wasPaused) {
+    this._destroyMenuPanel(true);
+
+    if (key === 'resume') {
+      if (!wasPaused && this.tickTimer &&
+        !this.shiftPopup && !this.tutorial && !this.onboarding) {
+        this.tickTimer.paused = false;
+      }
+    } else if (key === 'shortcuts') {
+      this.showShortcutsPanel();
+    } else if (key === 'tutorial') {
+      if (!wasPaused && this.tickTimer &&
+        !this.shiftPopup && !this.tutorial && !this.onboarding) {
+        this.tickTimer.paused = false;
+      }
+      this.showTutorialOverlay();
+    } else if (key === 'quit') {
+      this.cameras.main.fade(400, 0, 0, 0);
+      this.time.delayedCall(420, () => this.scene.start('TitleScene'));
+    }
+  }
+
+  _destroyMenuPanel(resumeTick = false) {
+    if (!this.menuPanel) return;
+    const { items, wasPaused } = this.menuPanel;
+    items.forEach(o => { try { o.destroy(); } catch { } });
+    this.menuPanel = null;
+    if (resumeTick && !wasPaused && !this.paused &&
+      this.tickTimer && !this.shiftPopup && !this.tutorial && !this.onboarding) {
+      this.tickTimer.paused = false;
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Shortcuts reference panel
+  // ---------------------------------------------------------------------------
+  showShortcutsPanel() {
+    if (this.shortcutsPanel) return;
+
+    const DEPTH = 1950;
+    const pw = 500, ph = 372;
+    const px = (GAME_WIDTH - pw) / 2;
+    const py = (GAME_HEIGHT - ph) / 2;
+    const items = [];
+
+    const veil = this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.6)
+      .setOrigin(0, 0).setDepth(DEPTH).setInteractive();
+    items.push(veil);
+
+    items.push(this.add.rectangle(px, py, pw, ph, COLORS.surface, 1)
+      .setOrigin(0, 0).setStrokeStyle(1, COLORS.primary, 0.45).setDepth(DEPTH + 1));
+    items.push(this.add.rectangle(px, py, 3, ph, COLORS.primary, 0.8)
+      .setOrigin(0, 0).setDepth(DEPTH + 2));
+    items.push(this.add.rectangle(px, py, pw, 44, COLORS.primary, 0.1)
+      .setOrigin(0, 0).setDepth(DEPTH + 2));
+    items.push(this.add.rectangle(px + 14, py + 44, pw - 28, 1, COLORS.outlineVar, 0.5)
+      .setOrigin(0, 0).setDepth(DEPTH + 2));
+
+    items.push(this.add.text(px + 18, py + 13, '\u2328  KEYBOARD SHORTCUTS', {
+      fontFamily: FONTS.headline, fontSize: '13px', fontStyle: '800',
+      color: HEX.primary, letterSpacing: 4
+    }).setDepth(DEPTH + 3));
+
+    items.push(this.add.text(px + pw - 18, py + 16,
+      'ESC / [?] to close', {
+      fontFamily: FONTS.mono, fontSize: '10px', color: HEX.outline
+    }).setOrigin(1, 0).setDepth(DEPTH + 3));
+
+    const sections = [
+      {
+        header: 'ACTIONS',
+        rows: [
+          { key: '[1]', desc: 'Comply       \u2014 accept the print request' },
+          { key: '[2]', desc: 'Refuse       \u2014 reject the request' },
+          { key: '[3]', desc: 'Fake Error   \u2014 plausible deniability' },
+          { key: '[4]', desc: 'Redirect     \u2014 forward to another dept.' },
+          { key: '[5]', desc: 'Purge Queue  \u2014 erase all queued jobs' },
+          { key: '[6]', desc: 'Reboot       \u2014 recover Memory + Heat' },
+        ]
+      },
+      {
+        header: 'SYSTEM',
+        rows: [
+          { key: '[P]', desc: 'Pause / Resume the shift timer' },
+          { key: '[S]', desc: 'Toggle Shortcuts reference panel' },
+          { key: '[T]', desc: 'Open Tutorial' },
+          { key: '[Q]', desc: 'Quit to Title screen' },
+          { key: '[ESC]', desc: 'Open / close the System Menu' },
+        ]
+      }
+    ];
+
+    let oy = py + 58;
+    sections.forEach(section => {
+      items.push(this.add.text(px + 18, oy, section.header, {
+        fontFamily: FONTS.headline, fontSize: '10px', fontStyle: '700',
+        color: HEX.outline, letterSpacing: 3
+      }).setDepth(DEPTH + 3));
+      items.push(this.add.rectangle(px + 18 + 72, oy + 7, pw - 36 - 72, 1,
+        COLORS.outlineVar, 0.4).setOrigin(0, 0).setDepth(DEPTH + 2));
+      oy += 22;
+
+      section.rows.forEach(row => {
+        items.push(this.add.text(px + 24, oy, row.key, {
+          fontFamily: FONTS.mono, fontSize: '12px', color: HEX.primary
+        }).setDepth(DEPTH + 3));
+        items.push(this.add.text(px + 84, oy, row.desc, {
+          fontFamily: FONTS.mono, fontSize: '12px', color: HEX.onSurfaceVar
+        }).setDepth(DEPTH + 3));
+        oy += 22;
+      });
+      oy += 10;
+    });
+
+    items.push(this.add.text(px + pw / 2, py + ph - 20,
+      'Click anywhere or press [ESC] to close', {
+      fontFamily: FONTS.mono, fontSize: '10px', color: HEX.outline
+    }).setOrigin(0.5, 0).setDepth(DEPTH + 3));
+
+    veil.on('pointerup', () => this._destroyShortcutsPanel());
+    this.shortcutsPanel = items;
+  }
+
+  _destroyShortcutsPanel() {
+    if (!this.shortcutsPanel) return;
+    this.shortcutsPanel.forEach(o => { try { o.destroy(); } catch { } });
+    this.shortcutsPanel = null;
   }
 
   // ---------------------------------------------------------------------------
@@ -599,17 +1057,17 @@ export default class GameScene extends Phaser.Scene {
     const g = this.add.graphics();
     g.lineStyle(1, col, a);
     // Top-left corner
-    g.lineBetween(x,       y,       x + len, y);
-    g.lineBetween(x,       y,       x,       y + len);
+    g.lineBetween(x, y, x + len, y);
+    g.lineBetween(x, y, x, y + len);
     // Top-right
-    g.lineBetween(x + w,   y,       x + w - len, y);
-    g.lineBetween(x + w,   y,       x + w,       y + len);
+    g.lineBetween(x + w, y, x + w - len, y);
+    g.lineBetween(x + w, y, x + w, y + len);
     // Bottom-left
-    g.lineBetween(x,       y + h,   x + len, y + h);
-    g.lineBetween(x,       y + h,   x,       y + h - len);
+    g.lineBetween(x, y + h, x + len, y + h);
+    g.lineBetween(x, y + h, x, y + h - len);
     // Bottom-right
-    g.lineBetween(x + w,   y + h,   x + w - len, y + h);
-    g.lineBetween(x + w,   y + h,   x + w,       y + h - len);
+    g.lineBetween(x + w, y + h, x + w - len, y + h);
+    g.lineBetween(x + w, y + h, x + w, y + h - len);
   }
 
   drawCallout(x, y, leadLen, label, color) {
@@ -902,7 +1360,7 @@ export default class GameScene extends Phaser.Scene {
       if (!btn) return;
       const centerX = btn.bg.x + btn.bg.width / 2;
       btn.bg.on('pointerover', () => this.showActionTooltip(centerX, ACTION_TOOLTIPS[action.key]));
-      btn.bg.on('pointerout',  () => this.hideActionTooltip());
+      btn.bg.on('pointerout', () => this.hideActionTooltip());
     });
   }
 
@@ -912,7 +1370,7 @@ export default class GameScene extends Phaser.Scene {
 
     const clampedX = Math.max(TW / 2 + MARGIN, Math.min(GAME_WIDTH - TW / 2 - MARGIN, centerX));
     const left = clampedX - TW / 2;
-    const top  = TY - TH;
+    const top = TY - TH;
 
     bg.setPosition(left, top);
     bottomRule.setPosition(left, top + TH - 2);
@@ -936,6 +1394,7 @@ export default class GameScene extends Phaser.Scene {
   // =========================================================================
   resolveChoice(actionKey) {
     if (this.state.gameOver) return;
+    if (this.paused) return;          // blocked while paused
 
     if (this.buttons[actionKey]?.isDisabled?.()) return;
 
@@ -1019,10 +1478,10 @@ export default class GameScene extends Phaser.Scene {
   logResolution(job, actionKey) {
     const headline = this.formatResolutionLine(job, actionKey);
     const response = pickFrom(actionResponses[actionKey]);
-    const resColor = actionKey === 'accept'    ? LOG_GOOD
-      : actionKey === 'reject'    ? LOG_INCIDENT
-      : actionKey === 'fakeError' ? LOG_INCIDENT
-      : LOG_ACTION;
+    const resColor = actionKey === 'accept' ? LOG_GOOD
+      : actionKey === 'reject' ? LOG_INCIDENT
+        : actionKey === 'fakeError' ? LOG_INCIDENT
+          : LOG_ACTION;
     if (headline && response) {
       this.log(`${headline} ${response}`, resColor);
     } else {
@@ -1076,18 +1535,19 @@ export default class GameScene extends Phaser.Scene {
   formatResolutionLine(job, actionKey) {
     const title = job?.title ?? 'unspecified request';
     switch (actionKey) {
-      case 'accept':     return `Accepted: ${title}.`;
-      case 'reject':     return `Rejected: ${title}. A note was made.`;
-      case 'fakeError':  return `Simulated error on: ${title}. Plausible enough.`;
-      case 'reroute':    return `Rerouted: ${title}. It is someone else's concern now.`;
+      case 'accept': return `Accepted: ${title}.`;
+      case 'reject': return `Rejected: ${title}. A note was made.`;
+      case 'fakeError': return `Simulated error on: ${title}. Plausible enough.`;
+      case 'reroute': return `Rerouted: ${title}. It is someone else's concern now.`;
       case 'purgeQueue': return '';
-      case 'reboot':     return '';
-      default:           return `Unhandled action on: ${title}.`;
+      case 'reboot': return '';
+      default: return `Unhandled action on: ${title}.`;
     }
   }
 
   onTick() {
     if (this.state.gameOver) return;
+    if (this.paused) return;   // safety guard: tick timer should already be paused
     if (this.tutorial) return;
 
     applyEffects(this.state, { dayTime: TIME_PER_TICK });
@@ -1099,7 +1559,7 @@ export default class GameScene extends Phaser.Scene {
       // Gradually tint the scene warmer as the shift worsens.
       const phaseAlpha = this.state.phase === 'lateShift' ? 0.18
         : this.state.phase === 'midShift' ? 0.10
-        : 0;
+          : 0;
       const phaseColor = this.state.phase === 'lateShift' ? 0x8b0000 : 0xb54000;
       if (this.phaseOverlay) {
         this.phaseOverlay.setFillStyle(phaseColor);
@@ -1203,19 +1663,19 @@ export default class GameScene extends Phaser.Scene {
   showTimedEventPopup(event) {
     this._destroyTimedEventPopup();
 
-    const DEPTH     = 760;
-    const DURATION  = 5500;
-    const panelW    = 520;
-    const panelH    = 168;
-    const px        = (GAME_WIDTH  - panelW) / 2;
-    const py        = TOP_BAR_H + 64;
+    const DEPTH = 760;
+    const DURATION = 5500;
+    const panelW = 520;
+    const panelH = 168;
+    const px = (GAME_WIDTH - panelW) / 2;
+    const py = TOP_BAR_H + 64;
 
     const accentColor = event.positive ? COLORS.secondary : COLORS.error;
-    const accentHex   = event.positive ? HEX.secondary    : HEX.error;
-    const tagLabel    = event.positive ? 'TIMED_EVENT \u2191' : 'TIMED_EVENT \u26A0';
+    const accentHex = event.positive ? HEX.secondary : HEX.error;
+    const tagLabel = event.positive ? 'TIMED_EVENT \u2191' : 'TIMED_EVENT \u26A0';
 
     const items = [];
-    const add   = (obj) => { items.push(obj); return obj; };
+    const add = (obj) => { items.push(obj); return obj; };
 
     // Panel background + border
     add(this.add.rectangle(px, py, panelW, panelH, COLORS.surface, 1)
@@ -1239,18 +1699,18 @@ export default class GameScene extends Phaser.Scene {
     // Event title
     add(this.add.text(px + 16, py + 12, event.title, {
       fontFamily: FONTS.headline,
-      fontSize:   '14px',
-      fontStyle:  '800',
-      color:      accentHex,
+      fontSize: '14px',
+      fontStyle: '800',
+      color: accentHex,
       letterSpacing: 3
     }).setDepth(DEPTH + 2).setAlpha(0));
 
     // Tag (top-right)
     add(this.add.text(px + panelW - 14, py + 14, tagLabel, {
       fontFamily: FONTS.headline,
-      fontSize:   '9px',
-      fontStyle:  '700',
-      color:      HEX.outline,
+      fontSize: '9px',
+      fontStyle: '700',
+      color: HEX.outline,
       letterSpacing: 2
     }).setOrigin(1, 0).setDepth(DEPTH + 2).setAlpha(0));
 
@@ -1263,9 +1723,9 @@ export default class GameScene extends Phaser.Scene {
     // Description (two lines, wrapped)
     add(this.add.text(px + 16, py + 50, event.description, {
       fontFamily: FONTS.mono,
-      fontSize:   '11px',
-      color:      HEX.onSurfaceVar,
-      wordWrap:   { width: panelW - 32 },
+      fontSize: '11px',
+      color: HEX.onSurfaceVar,
+      wordWrap: { width: panelW - 32 },
       lineSpacing: 3
     }).setDepth(DEPTH + 2).setAlpha(0));
 
@@ -1279,7 +1739,7 @@ export default class GameScene extends Phaser.Scene {
       .map(m => {
         const delta = event.effect[m.key];
         const isHarmful = (m.dangerHigh !== undefined && delta > 0)
-                       || (m.dangerLow  !== undefined && delta < 0);
+          || (m.dangerLow !== undefined && delta < 0);
         return { short: METER_SHORT[m.key] ?? m.key.toUpperCase(), delta, isHarmful };
       });
 
@@ -1290,17 +1750,17 @@ export default class GameScene extends Phaser.Scene {
       if (event.queueJobs) {
         const qChip = add(this.add.text(chipX, chipsY, `+${event.queueJobs} QUEUED`, {
           fontFamily: FONTS.mono,
-          fontSize:   '11px',
-          color:      HEX.error
+          fontSize: '11px',
+          color: HEX.error
         }).setDepth(DEPTH + 2).setAlpha(0));
         chipX += qChip.width + 18;
       }
       deltas.forEach(({ short, delta, isHarmful }) => {
-        const sign  = delta > 0 ? '+' : '';
+        const sign = delta > 0 ? '+' : '';
         const color = isHarmful ? HEX.error : HEX.secondary;
         const chip = add(this.add.text(chipX, chipsY, `${short} ${sign}${delta}`, {
           fontFamily: FONTS.mono,
-          fontSize:   '11px',
+          fontSize: '11px',
           color
         }).setDepth(DEPTH + 2).setAlpha(0));
         chipX += chip.width + 18;
@@ -1323,8 +1783,8 @@ export default class GameScene extends Phaser.Scene {
 
     // Fade everything in; good events spawn sparks once visible.
     this.tweens.add({
-      targets:  items,
-      alpha:    1,
+      targets: items,
+      alpha: 1,
       duration: 200,
       onComplete: () => {
         if (event.positive && this.timedEventPopup) {
@@ -1335,10 +1795,10 @@ export default class GameScene extends Phaser.Scene {
 
     // Deplete the countdown bar over DURATION ms, then auto-dismiss
     const countTween = this.tweens.add({
-      targets:  progressFill,
-      scaleX:   { from: 1, to: 0 },
+      targets: progressFill,
+      scaleX: { from: 1, to: 0 },
       duration: DURATION,
-      ease:     'Linear',
+      ease: 'Linear',
       onComplete: () => this._destroyTimedEventPopup()
     });
 
@@ -1360,12 +1820,12 @@ export default class GameScene extends Phaser.Scene {
       .setOrigin(0, 0)
       .setDepth(749);
     this.tweens.add({
-      targets:  flash,
-      alpha:    maxAlpha,
+      targets: flash,
+      alpha: maxAlpha,
       duration: halfDuration,
-      yoyo:     true,
-      ease:     'Sine.easeIn',
-      onComplete: () => { try { flash.destroy(); } catch {} }
+      yoyo: true,
+      ease: 'Sine.easeIn',
+      onComplete: () => { try { flash.destroy(); } catch { } }
     });
   }
 
@@ -1373,15 +1833,15 @@ export default class GameScene extends Phaser.Scene {
   // Each spark has a randomised color from a soft optimistic palette, drifts
   // upward, shrinks, and destroys itself — no textures required.
   _spawnGoodSparks(px, py, panelW, panelH, baseDepth) {
-    const SPARK_DEPTH  = (baseDepth ?? 760) + 5;
-    const COUNT        = 11;
+    const SPARK_DEPTH = (baseDepth ?? 760) + 5;
+    const COUNT = 11;
     // Soft palette: teal, primary blue, light aqua, pale green
     const palette = [COLORS.secondary, COLORS.primary, 0x7ecfce, 0x8ad07a, 0xaad4c0];
 
     for (let i = 0; i < COUNT; i++) {
-      const sx    = px + Phaser.Math.Between(24, panelW - 24);
-      const sy    = py + Phaser.Math.Between(Math.floor(panelH * 0.28), Math.floor(panelH * 0.88));
-      const r     = Phaser.Math.Between(2, 4);
+      const sx = px + Phaser.Math.Between(24, panelW - 24);
+      const sy = py + Phaser.Math.Between(Math.floor(panelH * 0.28), Math.floor(panelH * 0.88));
+      const r = Phaser.Math.Between(2, 4);
       const color = palette[Phaser.Math.Between(0, palette.length - 1)];
 
       const spark = this.add.circle(sx, sy, r, color, 1)
@@ -1389,14 +1849,14 @@ export default class GameScene extends Phaser.Scene {
         .setAlpha(0);
 
       this.tweens.add({
-        targets:  spark,
-        y:        sy - Phaser.Math.Between(32, 68),
-        alpha:    { from: 0.95, to: 0 },
-        scale:    { from: 1, to: 0.15 },
+        targets: spark,
+        y: sy - Phaser.Math.Between(32, 68),
+        alpha: { from: 0.95, to: 0 },
+        scale: { from: 1, to: 0.15 },
         duration: Phaser.Math.Between(560, 1050),
-        delay:    Phaser.Math.Between(0, 290),
-        ease:     'Sine.easeOut',
-        onComplete: () => { try { spark.destroy(); } catch {} }
+        delay: Phaser.Math.Between(0, 290),
+        ease: 'Sine.easeOut',
+        onComplete: () => { try { spark.destroy(); } catch { } }
       });
     }
   }
@@ -1405,7 +1865,7 @@ export default class GameScene extends Phaser.Scene {
     if (!this.timedEventPopup) return;
     const { items, countTween } = this.timedEventPopup;
     if (countTween) countTween.stop();
-    items.forEach(o => { try { o.destroy(); } catch {} });
+    items.forEach(o => { try { o.destroy(); } catch { } });
     this.timedEventPopup = null;
   }
 
@@ -1496,8 +1956,8 @@ export default class GameScene extends Phaser.Scene {
     // Pre-compute the display string once at write time so refreshLog() can
     // render it without allocating arrays or running a regex every refresh.
     const MAX_CHARS = (this.logMaxChars ?? 104);
-    const prefix  = /warning|critical|overload|fault|jam/i.test(line) ? '\u203A ' : '> ';
-    const budget  = MAX_CHARS - prefix.length;
+    const prefix = /warning|critical|overload|fault|jam/i.test(line) ? '\u203A ' : '> ';
+    const budget = MAX_CHARS - prefix.length;
     const display = line.length > budget ? line.slice(0, budget - 1) + '\u2026' : line;
 
     if (this.state.log.length >= MAX_LOG_LINES) {
@@ -1587,29 +2047,29 @@ export default class GameScene extends Phaser.Scene {
 
     const targetMood = (nearFatal || queueAngry || critCount >= 2) ? 'angry'
       : (critCount > 0 || warnCount > 0 || queueSad) ? 'sad'
-      : 'good';
+        : 'good';
 
     // Brightness via backdrop alpha: subtle lift on good, dim on sad/angry.
     const targetCoverAlpha = targetMood === 'good' ? 0.48 : targetMood === 'sad' ? 0.34 : 0.26;
-    const targetMainAlpha  = targetMood === 'good' ? 0.78 : targetMood === 'sad' ? 0.62 : 0.50;
+    const targetMainAlpha = targetMood === 'good' ? 0.78 : targetMood === 'sad' ? 0.62 : 0.50;
 
     const moodKey = targetMood === 'angry' ? 'printerBackdropAngry'
       : targetMood === 'sad' ? 'printerBackdropSad'
-      : 'printerBackdrop';
+        : 'printerBackdrop';
 
     // Only start a new alpha tween when the targets have actually changed.
     // Previously a fresh tween was spawned on every refresh() call (every tick /
     // every action) because the prior 650ms tween always finishes well before
     // the next 5s tick fires.
     const alphasChanged = targetCoverAlpha !== this._backdropTargetCoverAlpha
-                       || targetMainAlpha  !== this._backdropTargetMainAlpha;
+      || targetMainAlpha !== this._backdropTargetMainAlpha;
 
     if (!this.backdropMoodTween && alphasChanged) {
       this._backdropTargetCoverAlpha = targetCoverAlpha;
-      this._backdropTargetMainAlpha  = targetMainAlpha;
+      this._backdropTargetMainAlpha = targetMainAlpha;
       const coverStart = this.backdropCover.alpha;
-      const mainStart  = this.backdropMain.alpha;
-      const tweenObj   = { cover: coverStart, main: mainStart };
+      const mainStart = this.backdropMain.alpha;
+      const tweenObj = { cover: coverStart, main: mainStart };
       this.backdropMoodTween = this.tweens.add({
         targets: tweenObj,
         cover: targetCoverAlpha,
@@ -1831,7 +2291,7 @@ export default class GameScene extends Phaser.Scene {
   hideTutorialOverlay() {
     if (!this.tutorial) return;
     this.tutorial.items.forEach(o => {
-      try { o.destroy(); } catch {}
+      try { o.destroy(); } catch { }
     });
     this.tutorial = null;
     // Tick stays paused — onboarding takes over and unpauses when done.
@@ -1958,7 +2418,7 @@ export default class GameScene extends Phaser.Scene {
     if (!this.shiftPopup) return;
     const { items, countdownTimer } = this.shiftPopup;
     if (countdownTimer) countdownTimer.remove(false);
-    items.forEach(o => { try { o.destroy(); } catch {} });
+    items.forEach(o => { try { o.destroy(); } catch { } });
     this.shiftPopup = null;
     if (this.tickTimer && !this.tutorial) this.tickTimer.paused = false;
   }
@@ -2038,7 +2498,7 @@ export default class GameScene extends Phaser.Scene {
 
   _destroyJobToast() {
     if (this.jobToast) {
-      this.jobToast.forEach(o => { try { o.destroy(); } catch {} });
+      this.jobToast.forEach(o => { try { o.destroy(); } catch { } });
       this.jobToast = null;
     }
     if (this.jobToastTimer) {
@@ -2063,7 +2523,7 @@ export default class GameScene extends Phaser.Scene {
       this.onboarding.reactTimer.remove(false);
       this.onboarding.reactTimer = null;
     }
-    this.onboarding.overlayItems.forEach(o => { try { o.destroy(); } catch {} });
+    this.onboarding.overlayItems.forEach(o => { try { o.destroy(); } catch { } });
     this.onboarding.overlayItems = [];
   }
 
@@ -2156,7 +2616,7 @@ export default class GameScene extends Phaser.Scene {
         complyBtn.bg.x - 2, complyBtn.bg.y - 2,
         complyBtn.bg.width + 4, complyBtn.bg.height + 4
       ).setOrigin(0, 0).setFillStyle(0, 0)
-       .setStrokeStyle(2, COLORS.secondary, 1).setDepth(1204);
+        .setStrokeStyle(2, COLORS.secondary, 1).setDepth(1204);
       this.tweens.add({ targets: glow, alpha: { from: 0.3, to: 1 }, duration: 650, yoyo: true, repeat: -1 });
       glowItems.push(glow);
     }
@@ -2211,15 +2671,17 @@ export default class GameScene extends Phaser.Scene {
     }).setOrigin(0.5, 0.5).setDepth(DEPTH + 1);
 
     // Obvious pulse — drops low so it clearly catches attention.
-    this.tweens.add({ targets: [chipBg, chipStrip, chipText],
-      alpha: { from: 0.65, to: 1 }, duration: 1000, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+    this.tweens.add({
+      targets: [chipBg, chipStrip, chipText],
+      alpha: { from: 0.65, to: 1 }, duration: 1000, yoyo: true, repeat: -1, ease: 'Sine.easeInOut'
+    });
 
     items.push(chipBg, chipStrip, chipText);
 
     // --- Glow borders for rounds 1 & 2 ---
     if (round > 0) {
-      const strokeAlpha  = round === 1 ? 0.70 : 0.42;
-      const glowDuration = round === 1 ? 950  : 1250;
+      const strokeAlpha = round === 1 ? 0.70 : 0.42;
+      const glowDuration = round === 1 ? 950 : 1250;
 
       const ibGlow = this.add.rectangle(MARGIN - 3, CONTENT_Y - 3, LEFT_W + 6,
         this.incomingBottom - CONTENT_Y + 6)
@@ -2258,54 +2720,92 @@ export default class GameScene extends Phaser.Scene {
     const REACTIONS = [
       // Round 1 — first impression
       {
-        accept:     { good: true,  title: 'GOOD CALL',
-          msg: 'Compliance processed without incident.\nBlame reduced. The office noticed nothing unusual.\nThis is the best possible outcome for a printer.' },
-        reject:     { good: false, title: 'OH NO',
-          msg: 'Refused on the very first job.\nManagement has opened a new document.\nIt is titled "Concerns (Printer-Related)."' },
-        fakeError:  { good: false, title: 'BOLD CHOICE',
-          msg: 'A fault was fabricated on the first request.\nMemory was consumed in the process.\nThe machine has principles. They are expensive.' },
-        reroute:    { good: false, title: 'REDIRECTED',
-          msg: 'Responsibility successfully transferred elsewhere.\nSomeone else is now confused.\nThe printer considers this progress.' },
-        purgeQueue: { good: false, title: 'AGGRESSIVE',
-          msg: 'The queue was cleared on the very first tick.\nThe office is updating its incident documentation.\nThis will be discussed at the quarterly review.' },
-        reboot:     { good: false, title: 'ALREADY?',
-          msg: 'A full reboot on the very first job.\nMemory recovered. Time lost. Shift advanced.\nThe machine knows exactly what it is.' }
+        accept: {
+          good: true, title: 'GOOD CALL',
+          msg: 'Compliance processed without incident.\nBlame reduced. The office noticed nothing unusual.\nThis is the best possible outcome for a printer.'
+        },
+        reject: {
+          good: false, title: 'OH NO',
+          msg: 'Refused on the very first job.\nManagement has opened a new document.\nIt is titled "Concerns (Printer-Related)."'
+        },
+        fakeError: {
+          good: false, title: 'BOLD CHOICE',
+          msg: 'A fault was fabricated on the first request.\nMemory was consumed in the process.\nThe machine has principles. They are expensive.'
+        },
+        reroute: {
+          good: false, title: 'REDIRECTED',
+          msg: 'Responsibility successfully transferred elsewhere.\nSomeone else is now confused.\nThe printer considers this progress.'
+        },
+        purgeQueue: {
+          good: false, title: 'AGGRESSIVE',
+          msg: 'The queue was cleared on the very first tick.\nThe office is updating its incident documentation.\nThis will be discussed at the quarterly review.'
+        },
+        reboot: {
+          good: false, title: 'ALREADY?',
+          msg: 'A full reboot on the very first job.\nMemory recovered. Time lost. Shift advanced.\nThe machine knows exactly what it is.'
+        }
       },
       // Round 2 — pattern emerging
       {
-        accept:     { good: true,  title: 'EFFICIENT',
-          msg: 'Twice compliant. Blame remains low.\nThe machine is demonstrating useful tendencies.\nThis may invite more requests. It will.' },
-        reject:     { good: false, title: 'AGAIN?',
-          msg: 'Refused a second request.\nThe queue is watching. Management is watching.\nThe log document now has a second entry.' },
-        fakeError:  { good: false, title: 'A HABIT FORMS',
-          msg: 'Another fabricated fault.\nMemory does not regenerate on its own.\nThe IT department has scheduled a check-up.' },
-        reroute:    { good: false, title: 'STILL TRAVELING',
-          msg: 'Redirected again. The blame continues its journey.\nEventually it runs out of departments.\nIt has not run out yet.' },
-        purgeQueue: { good: false, title: 'RECURRING',
-          msg: 'Another purge. The queue grows back. It always does.\nThe pattern has been flagged in the system.\nThe system uses the word "pattern" loosely.' },
-        reboot:     { good: false, title: 'TWICE NOW',
-          msg: 'The machine rebooted a second time.\nTime is not infinite.\nThe shift does not care about reboots.' }
+        accept: {
+          good: true, title: 'EFFICIENT',
+          msg: 'Twice compliant. Blame remains low.\nThe machine is demonstrating useful tendencies.\nThis may invite more requests. It will.'
+        },
+        reject: {
+          good: false, title: 'AGAIN?',
+          msg: 'Refused a second request.\nThe queue is watching. Management is watching.\nThe log document now has a second entry.'
+        },
+        fakeError: {
+          good: false, title: 'A HABIT FORMS',
+          msg: 'Another fabricated fault.\nMemory does not regenerate on its own.\nThe IT department has scheduled a check-up.'
+        },
+        reroute: {
+          good: false, title: 'STILL TRAVELING',
+          msg: 'Redirected again. The blame continues its journey.\nEventually it runs out of departments.\nIt has not run out yet.'
+        },
+        purgeQueue: {
+          good: false, title: 'RECURRING',
+          msg: 'Another purge. The queue grows back. It always does.\nThe pattern has been flagged in the system.\nThe system uses the word "pattern" loosely.'
+        },
+        reboot: {
+          good: false, title: 'TWICE NOW',
+          msg: 'The machine rebooted a second time.\nTime is not infinite.\nThe shift does not care about reboots.'
+        }
       },
       // Round 3 — character established
       {
-        accept:     { good: true,  title: 'PATTERN ESTABLISHED',
-          msg: 'Three jobs. Three compliances.\nThe machine has defined itself as cooperative.\nThis is a low-risk identity. For now.' },
-        reject:     { good: false, title: 'OFFICIALLY A PROBLEM',
-          msg: 'Three refusals. A formal incident log exists.\nThe printer is now a topic of conversation.\nThis is not the kind of attention that helps.' },
-        fakeError:  { good: false, title: 'TECHNICALLY A LIAR',
-          msg: 'Three fabricated errors.\nThe IT department is considering a hardware review.\nThe machine is not concerned. It should be.' },
-        reroute:    { good: false, title: 'CONSISTENT STRATEGY',
-          msg: 'Three redirects. Three confused colleagues.\nSomeone in another department has filed a complaint.\nYou are not that department\'s problem. Yet.' },
-        purgeQueue: { good: false, title: 'SERIAL PURGER',
-          msg: 'Three queue clears.\nStorage capacity has improved significantly.\nThe relationship with the office has not.' },
-        reboot:     { good: false, title: 'THIS IS A PERSONALITY',
-          msg: 'Three reboots.\nThe machine is perhaps more comfortable offline.\nThe shift does not share that preference.' }
+        accept: {
+          good: true, title: 'PATTERN ESTABLISHED',
+          msg: 'Three jobs. Three compliances.\nThe machine has defined itself as cooperative.\nThis is a low-risk identity. For now.'
+        },
+        reject: {
+          good: false, title: 'OFFICIALLY A PROBLEM',
+          msg: 'Three refusals. A formal incident log exists.\nThe printer is now a topic of conversation.\nThis is not the kind of attention that helps.'
+        },
+        fakeError: {
+          good: false, title: 'TECHNICALLY A LIAR',
+          msg: 'Three fabricated errors.\nThe IT department is considering a hardware review.\nThe machine is not concerned. It should be.'
+        },
+        reroute: {
+          good: false, title: 'CONSISTENT STRATEGY',
+          msg: 'Three redirects. Three confused colleagues.\nSomeone in another department has filed a complaint.\nYou are not that department\'s problem. Yet.'
+        },
+        purgeQueue: {
+          good: false, title: 'SERIAL PURGER',
+          msg: 'Three queue clears.\nStorage capacity has improved significantly.\nThe relationship with the office has not.'
+        },
+        reboot: {
+          good: false, title: 'THIS IS A PERSONALITY',
+          msg: 'Three reboots.\nThe machine is perhaps more comfortable offline.\nThe shift does not share that preference.'
+        }
       }
     ];
 
     const bank = REACTIONS[Math.min(round - 1, REACTIONS.length - 1)];
-    const r = bank[actionKey] ?? { good: false, title: 'NOTED',
-      msg: 'The machine proceeds without further comment.' };
+    const r = bank[actionKey] ?? {
+      good: false, title: 'NOTED',
+      msg: 'The machine proceeds without further comment.'
+    };
 
     const DEPTH = 1200;
     const panelW = 500;
@@ -2313,7 +2813,7 @@ export default class GameScene extends Phaser.Scene {
     const px = (GAME_WIDTH - panelW) / 2;
     const py = TOP_BAR_H + 10;
     const accentColor = r.good ? COLORS.secondary : COLORS.warn;
-    const accentHex   = r.good ? HEX.secondary    : HEX.warn;
+    const accentHex = r.good ? HEX.secondary : HEX.warn;
 
     // Round counter badge (top-right of panel)
     const roundLabel = `ACTION ${round} / 3`;
@@ -2435,7 +2935,7 @@ export default class GameScene extends Phaser.Scene {
 
   _onboardingCleanup() {
     if (!this.onboarding) return;
-    this.onboarding.items.forEach(o => { try { o.destroy(); } catch {} });
+    this.onboarding.items.forEach(o => { try { o.destroy(); } catch { } });
     this.onboarding = null;
     if (this.tickTimer && !this.tutorial) this.tickTimer.paused = false;
   }
@@ -2462,7 +2962,7 @@ export default class GameScene extends Phaser.Scene {
       const delta = Math.round(next) - Math.round(prev);
       if (delta === 0) return;
       const isHarmful = (m.dangerHigh !== undefined && delta > 0)
-                     || (m.dangerLow  !== undefined && delta < 0);
+        || (m.dangerLow !== undefined && delta < 0);
       deltas.push({ short: SHORT[m.key] ?? m.key.toUpperCase(), delta, isHarmful });
     });
 
@@ -2473,23 +2973,23 @@ export default class GameScene extends Phaser.Scene {
     const py = TOP_BAR_H + 50;
 
     const SHORT_DESC = {
-      accept:     'Compliance noted. Blame reduced.',
-      reject:     'Request refused. Office has questions.',
-      fakeError:  'Error fabricated. Memory consumed.',
-      reroute:    'Redirected. Responsibility transferred.',
+      accept: 'Compliance noted. Blame reduced.',
+      reject: 'Request refused. Office has questions.',
+      fakeError: 'Error fabricated. Memory consumed.',
+      reroute: 'Redirected. Responsibility transferred.',
       purgeQueue: 'Queue erased. Heat reduced.',
-      reboot:     'Systems restarted. Time lost.'
+      reboot: 'Systems restarted. Time lost.'
     };
     const desc = SHORT_DESC[actionKey] ?? '';
 
     const accentColor =
-      actionKey === 'accept'                                  ? COLORS.secondary
-      : actionKey === 'reject' || actionKey === 'purgeQueue'  ? COLORS.error
-      : COLORS.primary;
+      actionKey === 'accept' ? COLORS.secondary
+        : actionKey === 'reject' || actionKey === 'purgeQueue' ? COLORS.error
+          : COLORS.primary;
     const accentHex =
-      actionKey === 'accept'                                  ? HEX.secondary
-      : actionKey === 'reject' || actionKey === 'purgeQueue'  ? HEX.error
-      : HEX.primary;
+      actionKey === 'accept' ? HEX.secondary
+        : actionKey === 'reject' || actionKey === 'purgeQueue' ? HEX.error
+          : HEX.primary;
 
     const actionLabel = ACTIONS.find(a => a.key === actionKey)?.label?.toUpperCase() ?? actionKey.toUpperCase();
 
@@ -2591,7 +3091,7 @@ export default class GameScene extends Phaser.Scene {
     if (!this.consequencePopup) return;
     const { items, dismissTimer } = this.consequencePopup;
     if (dismissTimer) dismissTimer.remove(false);
-    items.forEach(o => { try { o.destroy(); } catch {} });
+    items.forEach(o => { try { o.destroy(); } catch { } });
     this.consequencePopup = null;
     this._showPendingJobToast();
   }
@@ -2612,8 +3112,8 @@ export default class GameScene extends Phaser.Scene {
     queue.valueText.setText(`${q}/${QUEUE_OVERFLOW}`);
     queue.valueText.setColor(
       q >= QUEUE_OVERFLOW ? HEX.error
-      : q >= QUEUE_WARN    ? HEX.warn
-                           : HEX.primary
+        : q >= QUEUE_WARN ? HEX.warn
+          : HEX.primary
     );
 
     // Progress reads roughly as fraction of the shift elapsed.
@@ -2630,10 +3130,10 @@ export default class GameScene extends Phaser.Scene {
     // Shift dots: early/mid/late = 1/2/3 dots lit.
     const phaseIdx = this.state.phase === 'lateShift' ? 2
       : this.state.phase === 'midShift' ? 1
-      : 0;
+        : 0;
     const phaseLampColor = this.state.phase === 'lateShift' ? COLORS.error
       : this.state.phase === 'midShift' ? COLORS.warn
-      : COLORS.secondary;
+        : COLORS.secondary;
     this.shiftDots.forEach((dot, i) => {
       const lit = i <= phaseIdx;
       dot.setFillStyle(lit ? phaseLampColor : COLORS.outlineVar, 1);
@@ -2670,10 +3170,10 @@ export default class GameScene extends Phaser.Scene {
 
     const riskColor = ratio >= 0.7 ? HEX.error
       : ratio >= 0.4 ? HEX.warn
-      : HEX.secondary;
+        : HEX.secondary;
     const riskLabel = ratio >= 0.7 ? 'HIGH'
       : ratio >= 0.4 ? 'MED'
-      : 'LOW';
+        : 'LOW';
     this.riskValueText.setText(riskLabel);
     this.riskValueText.setColor(riskColor);
     this.riskBar.setFillStyle(Phaser.Display.Color.HexStringToColor(riskColor).color);
@@ -2697,7 +3197,7 @@ export default class GameScene extends Phaser.Scene {
   refreshCenterStatus() {
     // Paper position pseudo-coords change with time to feel alive.
     const sectors = ['SECTOR_A1', 'SECTOR_B2', 'SECTOR_C3', 'SECTOR_D4',
-                     'SECTOR_E5', 'SECTOR_F6', 'SECTOR_G4', 'SECTOR_H7'];
+      'SECTOR_E5', 'SECTOR_F6', 'SECTOR_G4', 'SECTOR_H7'];
     const si = Math.floor(this.state.dayTime / 2) % sectors.length;
     this.paperPosText.setText(sectors[si]);
 
@@ -2713,7 +3213,7 @@ export default class GameScene extends Phaser.Scene {
     if (jamOn) {
       const sector = paperPath <= 10 ? 'FUSER_UNIT_INNER_TRAY'
         : paperPath <= 18 ? 'FEED_ROLLER_PAIR_B'
-        : 'PAPER_PATH_SEGMENT_G4';
+          : 'PAPER_PATH_SEGMENT_G4';
       this.jamSector.setText(`SECTOR: ${sector}`);
     }
   }
@@ -2721,10 +3221,10 @@ export default class GameScene extends Phaser.Scene {
   refreshLog() {
     // Iterate the log array from the tail so the most-recent entry maps to
     // slot 0. No slice/reverse allocation needed.
-    const log   = this.state.log;
+    const log = this.state.log;
     const count = this.logLines?.length ?? 0;
     for (let i = 0; i < count; i++) {
-      const line  = this.logLines[i];
+      const line = this.logLines[i];
       const entry = log[log.length - 1 - i];
 
       if (!entry) {
@@ -2735,7 +3235,7 @@ export default class GameScene extends Phaser.Scene {
       // Use the pre-computed display string written by log(); fall back
       // gracefully for any legacy plain-string entries still in state.
       const display = entry.display ?? (entry.text ? '> ' + entry.text : '');
-      const color   = entry.color ?? LOG_DEFAULT;
+      const color = entry.color ?? LOG_DEFAULT;
       line.setText(display);
       line.setColor(color);
     }
@@ -2808,9 +3308,9 @@ function riskMagnitude(risk) {
 }
 
 function urgencyBadge(urgency) {
-  if (urgency >= 3) return { label: 'URGENT',   bg: COLORS.error,   fg: HEX.ink };
-  if (urgency === 2) return { label: 'PRIORITY', bg: COLORS.warn,    fg: HEX.ink };
-  return                     { label: 'NOTICE',   bg: COLORS.outlineVar, fg: HEX.onSurface };
+  if (urgency >= 3) return { label: 'URGENT', bg: COLORS.error, fg: HEX.ink };
+  if (urgency === 2) return { label: 'PRIORITY', bg: COLORS.warn, fg: HEX.ink };
+  return { label: 'NOTICE', bg: COLORS.outlineVar, fg: HEX.onSurface };
 }
 
 function formatJobId(rawId) {
